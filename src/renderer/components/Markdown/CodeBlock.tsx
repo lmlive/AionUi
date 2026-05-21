@@ -4,18 +4,32 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import SyntaxHighlighter from 'react-syntax-highlighter';
-import { vs, vs2015 } from 'react-syntax-highlighter/dist/esm/styles/hljs';
-
-import katex from 'katex';
+import type katexType from 'katex';
 
 import { copyText } from '@/renderer/utils/ui/clipboard';
 import { Message } from '@arco-design/web-react';
 import { Copy, Down, Up } from '@icon-park/react';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import SyntaxHighlighter from 'react-syntax-highlighter';
+import { vs, vs2015 } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import MermaidBlock from './MermaidBlock';
 import { formatCode, getDiffLineStyle } from './markdownUtils';
+
+// Lazy-load katex (~1.5MB) only when a LaTeX code block is encountered.
+let katexInstance: typeof katexType | null = null;
+let katexLoadPromise: Promise<typeof katexType> | null = null;
+
+const loadKatex = (): Promise<typeof katexType> => {
+  if (katexInstance) return Promise.resolve(katexInstance);
+  if (!katexLoadPromise) {
+    katexLoadPromise = import('katex').then((m) => {
+      katexInstance = m.default;
+      return katexInstance;
+    });
+  }
+  return katexLoadPromise;
+};
 
 const PREVIEW_LINES = 3;
 const EXPANDED_STATES_MAX_SIZE = 200;
@@ -47,6 +61,42 @@ type CodeBlockProps = {
   codeStyle?: React.CSSProperties;
   [key: string]: unknown;
 };
+
+/**
+ * Lazy-loaded KaTeX block — loads the katex library on first render of a LaTeX block.
+ */
+function LazyKatexBlock({ source }: { source: string }) {
+  const [html, setHtml] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    void loadKatex().then((katex) => {
+      if (cancelled) return;
+      try {
+        const rendered = katex.renderToString(source, {
+          displayMode: true,
+          throwOnError: false,
+        });
+        setHtml(rendered);
+      } catch {
+        // Leave html as null — will show nothing (fallback could be added)
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [source]);
+
+  if (html === null) {
+    return (
+      <div className='katex-display' style={{ opacity: 0.5, fontStyle: 'italic', padding: '8px 0' }}>
+        {source}
+      </div>
+    );
+  }
+
+  return <div className='katex-display' dangerouslySetInnerHTML={{ __html: html }} />;
+}
 
 function CodeBlock(props: CodeBlockProps) {
   const { t } = useTranslation();
@@ -90,15 +140,7 @@ function CodeBlock(props: CodeBlockProps) {
     const latexSource = String(children).replace(/\n$/, '');
     const isFullDocument = /\\(documentclass|begin\{document\}|usepackage)\b/.test(latexSource);
     if (!isFullDocument) {
-      try {
-        const html = katex.renderToString(latexSource, {
-          displayMode: true,
-          throwOnError: false,
-        });
-        return <div className='katex-display' dangerouslySetInnerHTML={{ __html: html }} />;
-      } catch {
-        // Fall through to render as code block if KaTeX fails
-      }
+      return <LazyKatexBlock source={latexSource} />;
     }
   }
 

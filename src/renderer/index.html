@@ -38,6 +38,63 @@
         padding: 0;
         overflow: hidden;
       }
+      /* Inline skeleton — renders instantly before React hydrates */
+      #app-skeleton {
+        display: flex;
+        width: 100%;
+        height: 100%;
+        background: var(--bg-base, #f7f8fa);
+      }
+      [data-theme="dark"] #app-skeleton {
+        background: var(--bg-base, #17171a);
+      }
+      #app-skeleton .sider {
+        width: 250px;
+        height: 100%;
+        background: var(--bg-2, #f2f3f5);
+        border-right: 1px solid var(--bg-3, #e5e6eb);
+        flex-shrink: 0;
+        padding: 16px;
+        box-sizing: border-box;
+      }
+      [data-theme="dark"] #app-skeleton .sider {
+        background: var(--bg-2, #232324);
+        border-color: var(--bg-3, #3a3a3c);
+      }
+      #app-skeleton .main {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #app-skeleton .logo {
+        width: 40px;
+        height: 40px;
+        background: #000;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 12px;
+      }
+      #app-skeleton .pulse {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: 3px solid var(--bg-3, #e5e6eb);
+        border-top-color: var(--primary, #4E5969);
+        animation: skeleton-spin 0.8s linear infinite;
+      }
+      [data-theme="dark"] #app-skeleton .pulse {
+        border-color: var(--bg-3, #3a3a3c);
+        border-top-color: var(--primary, #9ca3af);
+      }
+      @keyframes skeleton-spin {
+        to { transform: rotate(360deg); }
+      }
+      @media (max-width: 767px) {
+        #app-skeleton .sider { display: none; }
+      }
     </style>
   </head>
   <body>
@@ -48,7 +105,23 @@
         if (t) document.body.setAttribute('arco-theme', t);
       } catch (e) {}
     </script>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Inline skeleton — removed automatically when React mounts -->
+      <div id="app-skeleton">
+        <div class="sider">
+          <div class="logo">
+            <svg width="22" height="22" viewBox="0 0 80 80" fill="none">
+              <path d="M40 20 Q38 22 25 40 Q23 42 26 42 L30 42 Q32 40 40 30 Q48 40 50 42 L54 42 Q57 42 55 40 Q42 22 40 20" fill="white"/>
+              <circle cx="40" cy="46" r="3" fill="white"/>
+              <path d="M18 50 Q40 70 62 50" stroke="white" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+        <div class="main">
+          <div class="pulse"></div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="./main.tsx"></script>
   </body>
 </html>

@@ -5,9 +5,11 @@
  */
 
 import { Message } from '@arco-design/web-react';
-import MonacoEditor from '@monaco-editor/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+
+// Lazy-load Monaco Editor (~10MB) — only needed when user toggles edit mode
+const MonacoEditor = React.lazy(() => import('@monaco-editor/react'));
 
 interface HTMLPreviewProps {
   content: string;
@@ -378,23 +380,25 @@ const HTMLPreview: React.FC<HTMLPreviewProps> = ({ content, filePath, hideToolba
         {/* 左侧：代码编辑器（编辑模式时显示） */}
         {editMode && (
           <div className='flex-1 overflow-hidden border-r border-border-base'>
-            <MonacoEditor
-              height='100%'
-              language='html'
-              theme={currentTheme === 'dark' ? 'vs-dark' : 'vs'}
-              value={htmlCode}
-              onChange={(value) => setHtmlCode(value || '')}
-              options={{
-                minimap: { enabled: false },
-                fontSize: 13,
-                lineNumbers: 'on',
-                wordWrap: 'on',
-                automaticLayout: true,
-                scrollBeyondLastLine: false,
-                formatOnPaste: true,
-                formatOnType: true,
-              }}
-            />
+            <React.Suspense fallback={<div className='flex-center h-full text-t-secondary'>Loading editor...</div>}>
+              <MonacoEditor
+                height='100%'
+                language='html'
+                theme={currentTheme === 'dark' ? 'vs-dark' : 'vs'}
+                value={htmlCode}
+                onChange={(value) => setHtmlCode(value || '')}
+                options={{
+                  minimap: { enabled: false },
+                  fontSize: 13,
+                  lineNumbers: 'on',
+                  wordWrap: 'on',
+                  automaticLayout: true,
+                  scrollBeyondLastLine: false,
+                  formatOnPaste: true,
+                  formatOnType: true,
+                }}
+              />
+            </React.Suspense>
           </div>
         )}
 

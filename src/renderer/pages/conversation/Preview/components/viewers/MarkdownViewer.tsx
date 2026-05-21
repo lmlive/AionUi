@@ -11,9 +11,50 @@ import { useTextSelection } from '@/renderer/hooks/ui/useTextSelection';
 import { useTypingAnimation } from '@/renderer/hooks/chat/useTypingAnimation';
 import { iconColors } from '@/renderer/styles/colors';
 import { Close } from '@icon-park/react';
-import katex from 'katex';
+import type katexType from 'katex';
 import 'katex/dist/katex.min.css';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+// Lazy-load katex for direct renderToString usage in code blocks
+let katexInstance: typeof katexType | null = null;
+let katexLoadPromise: Promise<typeof katexType> | null = null;
+const loadKatex = (): Promise<typeof katexType> => {
+  if (katexInstance) return Promise.resolve(katexInstance);
+  if (!katexLoadPromise) {
+    katexLoadPromise = import('katex').then((m) => {
+      katexInstance = m.default;
+      return katexInstance;
+    });
+  }
+  return katexLoadPromise;
+};
+
+/** Lazy KaTeX block that loads katex on demand */
+function LazyKatexBlockViewer({ source }: { source: string }) {
+  const [html, setHtml] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    void loadKatex().then((katex) => {
+      if (cancelled) return;
+      try {
+        const rendered = katex.renderToString(source, {
+          displayMode: true,
+          throwOnError: false,
+        });
+        setHtml(rendered);
+      } catch {
+        // Leave null
+      }
+    });
+    return () => { cancelled = true; };
+  }, [source]);
+
+  if (html === null) {
+    return <div className='katex-display' style={{ opacity: 0.5, fontStyle: 'italic' }}>{source}</div>;
+  }
+  return <div className='katex-display' dangerouslySetInnerHTML={{ __html: html }} />;
+}
 import { useTranslation } from 'react-i18next';
 import SyntaxHighlighter from 'react-syntax-highlighter';
 import { vs, vs2015 } from 'react-syntax-highlighter/dist/esm/styles/hljs';
@@ -459,15 +500,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
                   if (language === 'latex' || language === 'math' || language === 'tex') {
                     const isFullDocument = /\\(documentclass|begin\{document\}|usepackage)\b/.test(codeContent);
                     if (!isFullDocument) {
-                      try {
-                        const html = katex.renderToString(codeContent, {
-                          displayMode: true,
-                          throwOnError: false,
-                        });
-                        return <div className='katex-display' dangerouslySetInnerHTML={{ __html: html }} />;
-                      } catch {
-                        // Fall through to render as code block if KaTeX fails
-                      }
+                      return <LazyKatexBlockViewer source={codeContent} />;
                     }
                   }
 
