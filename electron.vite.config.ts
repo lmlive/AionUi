@@ -272,7 +272,6 @@ export default defineConfig(({ mode }) => {
           'classnames',
           'swr',
           'eventemitter3',
-          'katex',
           'diff2html',
           'remark-gfm',
           'remark-math',

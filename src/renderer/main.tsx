@@ -35,10 +35,6 @@ import { ConfigProvider } from '@arco-design/web-react';
 import '@arco-design/web-react/es/_util/react-19-adapter';
 import '@arco-design/web-react/dist/css/arco.css';
 import enUS from '@arco-design/web-react/es/locale/en-US';
-import jaJP from '@arco-design/web-react/es/locale/ja-JP';
-import zhCN from '@arco-design/web-react/es/locale/zh-CN';
-import zhTW from '@arco-design/web-react/es/locale/zh-TW';
-import koKR from '@arco-design/web-react/es/locale/ko-KR';
 import { useTranslation } from 'react-i18next';
 
 // Styles
@@ -51,6 +47,7 @@ import './services/i18n';
 import { registerPwa } from './services/registerPwa';
 
 // Components and utilities
+import AppLoader from './components/layout/AppLoader';
 import Layout from './components/layout/Layout';
 import Router from './components/layout/Router';
 import Sider from './components/layout/Sider';
@@ -58,33 +55,56 @@ import { useAuth } from './hooks/context/AuthContext';
 import { ConversationHistoryProvider } from './hooks/context/ConversationHistoryContext';
 import HOC from './utils/ui/HOC';
 
-// Patch Korean locale with missing properties from English locale
-const koKRComplete = {
-  ...koKR,
-  Calendar: {
-    ...koKR.Calendar,
-    monthFormat: enUS.Calendar.monthFormat,
-    yearFormat: enUS.Calendar.yearFormat,
-  },
-  DatePicker: {
-    ...koKR.DatePicker,
-    Calendar: {
-      ...koKR.DatePicker.Calendar,
-      monthFormat: enUS.Calendar.monthFormat,
-      yearFormat: enUS.Calendar.yearFormat,
-    },
-  },
-  Form: enUS.Form,
-  ColorPicker: enUS.ColorPicker,
+// Lazy-load Arco locale data — only the active language is loaded.
+// English (enUS) is always bundled as the fallback; others load on demand.
+type ArcoLocale = typeof enUS;
+
+const localeLoaders: Record<string, () => Promise<{ default: ArcoLocale }>> = {
+  'zh-CN': () => import('@arco-design/web-react/es/locale/zh-CN'),
+  'zh-TW': () => import('@arco-design/web-react/es/locale/zh-TW'),
+  'ja-JP': () => import('@arco-design/web-react/es/locale/ja-JP'),
+  'ko-KR': () => import('@arco-design/web-react/es/locale/ko-KR'),
 };
 
-const arcoLocales: Record<string, typeof enUS> = {
-  'zh-CN': zhCN,
-  'zh-TW': zhTW,
-  'ja-JP': jaJP,
-  'ko-KR': koKRComplete,
-  'en-US': enUS,
-};
+// Cache loaded locales to avoid re-importing
+const loadedLocales: Record<string, ArcoLocale> = { 'en-US': enUS };
+
+function useArcoLocale(): ArcoLocale {
+  const {
+    i18n: { language },
+  } = useTranslation();
+  const [locale, setLocale] = React.useState<ArcoLocale>(loadedLocales[language] ?? enUS);
+
+  React.useEffect(() => {
+    if (loadedLocales[language]) {
+      setLocale(loadedLocales[language]);
+      return;
+    }
+    const loader = localeLoaders[language];
+    if (!loader) return;
+
+    let cancelled = false;
+    void loader().then((mod) => {
+      if (cancelled) return;
+      let arcoLocale = mod.default;
+      // Patch Korean locale with missing properties from English
+      if (language === 'ko-KR') {
+        arcoLocale = {
+          ...arcoLocale,
+          Calendar: { ...arcoLocale.Calendar, monthFormat: enUS.Calendar.monthFormat, yearFormat: enUS.Calendar.yearFormat },
+          DatePicker: { ...arcoLocale.DatePicker, Calendar: { ...arcoLocale.DatePicker.Calendar, monthFormat: enUS.Calendar.monthFormat, yearFormat: enUS.Calendar.yearFormat } },
+          Form: enUS.Form,
+          ColorPicker: enUS.ColorPicker,
+        } as ArcoLocale;
+      }
+      loadedLocales[language] = arcoLocale;
+      setLocale(arcoLocale);
+    });
+    return () => { cancelled = true; };
+  }, [language]);
+
+  return locale;
+}
 
 const AppProviders: React.FC<PropsWithChildren> = ({ children }) =>
   React.createElement(
@@ -98,11 +118,7 @@ const AppProviders: React.FC<PropsWithChildren> = ({ children }) =>
   );
 
 const Config: React.FC<PropsWithChildren> = ({ children }) => {
-  const {
-    i18n: { language },
-  } = useTranslation();
-  const arcoLocale = arcoLocales[language] ?? enUS;
-
+  const arcoLocale = useArcoLocale();
   return React.createElement(ConfigProvider, { theme: { primaryColor: '#4E5969' }, locale: arcoLocale }, children);
 };
 
@@ -110,7 +126,7 @@ const Main = () => {
   const { ready } = useAuth();
 
   if (!ready) {
-    return null;
+    return <AppLoader />;
   }
 
   return (

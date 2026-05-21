@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import mermaid from 'mermaid';
+import type mermaidAPI from 'mermaid';
 import SyntaxHighlighter from 'react-syntax-highlighter';
 import { vs, vs2015 } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 
@@ -21,9 +21,25 @@ type MermaidBlockProps = {
   showOpenInPanelButton?: boolean;
 };
 
+// Lazy-load mermaid (~5MB) only when a mermaid diagram is actually rendered.
+let mermaidInstance: typeof mermaidAPI | null = null;
+let mermaidLoadPromise: Promise<typeof mermaidAPI> | null = null;
+
+const loadMermaid = (): Promise<typeof mermaidAPI> => {
+  if (mermaidInstance) return Promise.resolve(mermaidInstance);
+  if (!mermaidLoadPromise) {
+    mermaidLoadPromise = import('mermaid').then((m) => {
+      mermaidInstance = m.default;
+      return mermaidInstance;
+    });
+  }
+  return mermaidLoadPromise;
+};
+
 let initializedTheme: 'light' | 'dark' | null = null;
-const ensureMermaidInitialized = (theme: 'light' | 'dark') => {
-  if (initializedTheme === theme) return;
+const ensureMermaidInitialized = async (theme: 'light' | 'dark') => {
+  const mermaid = await loadMermaid();
+  if (initializedTheme === theme) return mermaid;
   mermaid.initialize({
     startOnLoad: false,
     securityLevel: 'strict',
@@ -32,6 +48,7 @@ const ensureMermaidInitialized = (theme: 'light' | 'dark') => {
     fontFamily: 'inherit',
   });
   initializedTheme = theme;
+  return mermaid;
 };
 
 const withResponsiveSvg = (svg: string): string => {
@@ -98,7 +115,7 @@ function MermaidBlock({ code, style, showOpenInPanelButton = true }: MermaidBloc
 
     const renderDiagram = async () => {
       try {
-        ensureMermaidInitialized(currentTheme);
+        const mermaid = await ensureMermaidInitialized(currentTheme);
 
         const { svg: renderedSvg } = await mermaid.render(`${blockIdRef.current}-${Date.now()}`, source);
 
