@@ -43,11 +43,18 @@
     "selectFolder": "Klasör seç",
     "recentLabel": "Son kullanılan",
     "chooseDifferentFolder": "Farklı klasör seç",
-    "error": "Takım oluşturulamadı"
+    "error": "Takım oluşturulamadı",
+    "teammates": "Başlangıç Takım Üyeleri",
+    "teammatesDesc": "Yerel ajanları takım üyesi olarak önceden atayın. Oluşturulduktan sonra da ekleyebilirsiniz.",
+    "teammatesPlaceholder": "Üye seçin (isteğe bağlı)",
+    "noTeammates": "Yok — Lider ajanları dinamik olarak oluşturacak"
   },
   "removeAgent": {
     "confirmTitle": "Takım Üyesini Kaldır",
-    "confirmContent": "Bu üye şu anda aktif. Zorla kaldırılsın mı?"
+    "confirmContent": "Bu üye şu anda aktif. Zorla kaldırılsın mı?",
+    "retrying": "Yeniden deneniyor... ({attempt}/{maxAttempts}. deneme)",
+    "retryFailed": "Yeniden deneme başarısız: {error}",
+    "rateLimited": "İstek sınırı aşıldı (429). {seconds} saniye bekleniyor..."
   },
   "emptyState": {
     "subtitle": "Hedefini söyle, ekibi koordine ederek tamamlayayım",
@@ -55,7 +62,10 @@
       "help_build": "Sıfırdan yeni bir özellik oluşturmama yardım et",
       "analyze_code": "Bu kod tabanını analiz et ve iyileştirmeler öner",
       "write_report": "Bir konuyu araştır ve ayrıntılı rapor yaz",
-      "fix_bug": "Projemizdeki hataları bul ve düzelt"
+      "fix_bug": "Projemizdeki hataları bul ve düzelt",
+      "debate": "Farklı tarafları temsil eden ajanlarla bir tartışma düzenleyin",
+      "interview": "Ajanlar arasında derinlemesine bir röportaj planlayın",
+      "expert_review": "Birden fazla uzmanın aynı sorunu analiz etmesini sağlayın"
     }
   }
 }

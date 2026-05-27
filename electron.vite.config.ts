@@ -57,6 +57,8 @@ const mainAliases = {
 export default defineConfig(({ mode }) => {
   const isDevelopment = mode === 'development';
   const enableSentrySourceMaps = !isDevelopment && !!process.env.SENTRY_AUTH_TOKEN;
+  const rendererHost = process.env.AIONUI_RENDERER_HOST || '0.0.0.0';
+  const rendererHmrHost = process.env.AIONUI_RENDERER_HMR_HOST;
 
   const sentryPluginOptions = {
     org: process.env.SENTRY_ORG,
@@ -164,16 +166,15 @@ export default defineConfig(({ mode }) => {
       publicDir: resolve('public'),
       appType: 'mpa',
       server: {
+        host: rendererHost,
         // Default to 5173; when occupied (e.g. another AionUi clone is running),
         // Vite auto-increments to the next available port.
         // electron-vite reads the actual port and sets ELECTRON_RENDERER_URL accordingly.
         port: 5173,
-        // Explicit HMR host so Vite client connects directly to the Vite dev server,
-        // not to the WebUI proxy server (which would reject the WebSocket and cause infinite reload).
-        // Port is omitted so it automatically matches the server port.
-        hmr: {
-          host: 'localhost',
-        },
+        // For LAN access, leave the HMR host unset by default so Vite uses
+        // the browser's current host. Set AIONUI_RENDERER_HMR_HOST when a fixed
+        // hostname/IP is needed.
+        hmr: rendererHmrHost ? { host: rendererHmrHost } : undefined,
       },
       resolve: {
         alias: {

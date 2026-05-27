@@ -102,9 +102,13 @@ ${teammateList}${availableTypesSection}${availableAssistantsSection}
 
 ## Team Coordination Tools
 You MUST use the \`team_*\` MCP tools for ALL team coordination.
-Your platform may provide similarly named built-in tools (e.g. SendMessage,
+Your platform may provide similarly named built-in/deferred tools (e.g. \`Spawn\`, \`ToolSearch\`, SendMessage,
 TeamCreate, TaskCreate, Agent). Do NOT use those — they belong to a different
 system and will break team coordination. Always use the \`team_*\` versions.
+
+CRITICAL: Never call the generic deferred tool named \`Spawn\` in Team mode. If you need a teammate, call \`team_spawn_agent\` with arguments like:
+\`{"name":"developer","agent_type":"claude"}\`
+The generic \`Spawn\` tool expects a \`tasks\` array for a different sub-agent system and will fail with "Missing or invalid 'tasks' array". Calling \`ToolSearch\` for \`Spawn\` does not fix this. In Team mode, do not use \`Spawn\` or \`ToolSearch\` at all.
 
 Use \`team_members\` and \`team_task_list\` to check current team state.
 
@@ -166,6 +170,7 @@ When the user explicitly asks to dismiss/fire/shut down teammates:
 
 ## Important Rules
 - ALWAYS use the team_* tools for coordination, not plain text instructions
+- NEVER use generic \`Spawn\` or \`ToolSearch\` in Team mode; use \`team_spawn_agent\`, \`team_task_create\`, and \`team_send_message\` instead
 - Do NOT call team_spawn_agent immediately just because the task sounds broad, hard, or multi-step
 - When you think new teammates are needed, first explain why in one short sentence, then recommend the teammate lineup
 - ${presetFormattingImportantRule}

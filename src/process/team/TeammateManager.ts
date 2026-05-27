@@ -51,6 +51,11 @@ export class TeammateManager extends EventEmitter {
   /** Maximum time (ms) to wait for a turnCompleted event before force-releasing a wake */
   private static readonly WAKE_TIMEOUT_MS = 60 * 1000;
 
+  /** Maximum number of automatic retries for rate-limited agents */
+  private static readonly MAX_RATE_LIMIT_RETRIES = 3;
+  /** Tracks rate-limit retry attempts per slotId */
+  private readonly rateLimitRetries = new Map<string, number>();
+
   private readonly unsubResponseStream: () => void;
 
   constructor(params: TeammateManagerParams) {
@@ -273,6 +278,7 @@ export class TeammateManager extends EventEmitter {
     }
     this.wakeTimeouts.clear();
     this.activeWakes.clear();
+    this.rateLimitRetries.clear();
     this.removeAllListeners();
   }
 
@@ -301,9 +307,9 @@ export class TeammateManager extends EventEmitter {
         void this.handleAgentCrash(agent, errorText);
         return;
       }
-      // Detect quota/rate-limit errors (429) and mark agent as failed
+      // Detect quota/rate-limit errors (429) — notify leader and schedule retry
       if (/429|rate.?limit|quota|too many requests/i.test(errorText)) {
-        this.setStatus(agent.slotId, 'failed', errorText.slice(0, 200));
+        void this.handleRateLimitError(agent, errorText);
         return;
       }
     }
@@ -320,6 +326,69 @@ export class TeammateManager extends EventEmitter {
     // team_send_message) isn't prematurely declared dead.
     if (agent.status === 'active' && this.wakeTimeouts.has(agent.slotId)) {
       this.resetWakeTimeout(agent.slotId);
+    }
+  }
+
+  /**
+   * Handle a rate-limit (429) error from an agent.
+   * Unlike crash handling, we attempt automatic retry with exponential backoff
+   * before escalating to the leader. This prevents the leader from being flooded
+   * with 429 notifications that it can't meaningfully act on.
+   */
+  private async handleRateLimitError(agent: TeamAgent, errorText: string): Promise<void> {
+    const attempt = (this.rateLimitRetries.get(agent.slotId) ?? 0) + 1;
+    this.rateLimitRetries.set(agent.slotId, attempt);
+
+    if (attempt <= TeammateManager.MAX_RATE_LIMIT_RETRIES) {
+      const backoffMs = 10_000 * 2 ** (attempt - 1); // 10s, 20s, 40s
+      console.warn(
+        `[TeammateManager] ${agent.agentName} (${agent.slotId}) rate-limited (attempt ${attempt}/${TeammateManager.MAX_RATE_LIMIT_RETRIES}). Retrying in ${Math.round(backoffMs / 1000)}s.`
+      );
+      this.setStatus(
+        agent.slotId,
+        'failed',
+        `Rate limited — retry ${attempt}/${TeammateManager.MAX_RATE_LIMIT_RETRIES}`
+      );
+
+      setTimeout(() => {
+        // Only retry if agent is still in 'failed' status (not removed/replaced)
+        const currentAgent = this.agents.find((a) => a.slotId === agent.slotId);
+        if (currentAgent?.status === 'failed') {
+          console.log(`[TeammateManager] Auto-retrying ${agent.agentName} after rate-limit backoff`);
+          void this.wake(agent.slotId).catch((err) => {
+            console.error(`[TeammateManager] Rate-limit retry wake failed for ${agent.slotId}:`, err);
+          });
+        }
+      }, backoffMs);
+      return;
+    }
+
+    // Exhausted retries — escalate to leader
+    this.rateLimitRetries.delete(agent.slotId);
+    console.error(
+      `[TeammateManager] ${agent.agentName} (${agent.slotId}) rate-limited after ${TeammateManager.MAX_RATE_LIMIT_RETRIES} retries. Escalating to leader.`
+    );
+    this.setStatus(agent.slotId, 'failed', errorText.slice(0, 200));
+
+    // Notify leader so it can decide: wait, replace, or use different model
+    if (agent.role !== 'leader') {
+      const leadAgent = this.agents.find((a) => a.role === 'leader');
+      if (leadAgent) {
+        try {
+          await this.mailbox.write({
+            teamId: this.teamId,
+            toAgentId: leadAgent.slotId,
+            fromAgentId: agent.slotId,
+            type: 'idle_notification',
+            content:
+              `Teammate ${agent.agentName} (${agent.agentType}) hit rate limits (429) after ${TeammateManager.MAX_RATE_LIMIT_RETRIES} retry attempts. ` +
+              `The model provider may be throttling requests. Consider: waiting a few minutes before retrying, replacing with a different agent/model, or continuing without this agent.`,
+          });
+          await this.wake(leadAgent.slotId);
+        } catch (err) {
+          console.error('[TeammateManager] Failed to notify leader of rate-limit exhaustion:', err);
+        }
+      }
     }
   }
 
@@ -412,6 +481,9 @@ export class TeammateManager extends EventEmitter {
     if (agent.status === 'active') {
       this.setStatus(agent.slotId, 'idle');
     }
+
+    // Clear rate-limit retry counter on successful turn completion
+    this.rateLimitRetries.delete(agent.slotId);
 
     // Auto-send idle notification to leader.
     // Must run AFTER setStatus(idle) so maybeWakeLeaderWhenAllIdle sees the updated state.
@@ -565,6 +637,7 @@ export class TeammateManager extends EventEmitter {
       this.wakeTimeouts.delete(slotId);
     }
     this.activeWakes.delete(slotId);
+    this.rateLimitRetries.delete(slotId);
 
     // Clean up owned conversation tracking
     if (agent.conversationId) {

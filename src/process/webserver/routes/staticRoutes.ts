@@ -149,6 +149,14 @@ function registerProductionStaticRoutes(expressApp: Express, staticRoot: string,
   }
 }
 
+const CLIENT_HASH_ROUTE_PATTERN = /^\/(?:login|guid|conversation|settings|team|scheduled|test)(?:\/.*)?$/;
+
+function registerHashRouteRedirects(expressApp: Express): void {
+  expressApp.get(CLIENT_HASH_ROUTE_PATTERN, (req: Request, res: Response) => {
+    res.redirect(302, `/#${req.originalUrl}`);
+  });
+}
+
 /**
  * Register static assets and page routes
  *
@@ -160,12 +168,14 @@ export function registerStaticRoutes(expressApp: Express): void {
 
   if (resolved) {
     console.log(`[WebUI] Serving renderer from: ${resolved.staticRoot}`);
+    registerHashRouteRedirects(expressApp);
     registerProductionStaticRoutes(expressApp, resolved.staticRoot, resolved.indexHtml);
     return;
   }
 
   // No built assets - proxy to Vite dev server in development mode
   console.log(`[WebUI] No renderer build found, proxying to Vite dev server at http://localhost:${VITE_DEV_PORT}`);
+  registerHashRouteRedirects(expressApp);
   const proxy = createViteDevProxy();
   expressApp.use(proxy);
 }

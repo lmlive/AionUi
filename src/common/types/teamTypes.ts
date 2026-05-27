@@ -13,7 +13,7 @@ import type { AcpInitializeResult } from './acpTypes';
  * eagerly (e.g. at app startup or first backend detection) instead of lazily
  * after the first user conversation.
  */
-const KNOWN_TEAM_CAPABLE_BACKENDS = new Set(['gemini', 'claude', 'codex', 'aionrs']);
+const KNOWN_TEAM_CAPABLE_BACKENDS = new Set(['gemini', 'claude', 'codex', 'codebuddy', 'aionrs']);
 
 /**
  * Check if an agent backend is team-capable.
@@ -61,6 +61,7 @@ export type TeamAgent = {
   status: TeammateStatus;
   cliPath?: string;
   customAgentId?: string;
+  isPreset?: boolean;
   model?: string;
 };
 

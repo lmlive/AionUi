@@ -21,8 +21,17 @@ import { ExtensionRegistry } from './process/extensions';
 import { getChannelManager } from './process/channels';
 import { closeDatabase } from './process/services/database/export';
 
-const PORT = parseInt(process.env.PORT ?? '3000', 10);
-const ALLOW_REMOTE = process.env.ALLOW_REMOTE === 'true';
+const PORT = parseInt(process.env.AIONUI_PORT ?? process.env.PORT ?? '3000', 10);
+const parseBooleanEnv = (value?: string): boolean => {
+  if (!value) return false;
+  return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
+};
+const hostRequestsRemote = ['0.0.0.0', '::', '::0'].includes(process.env.AIONUI_HOST?.trim() ?? '');
+const ALLOW_REMOTE =
+  parseBooleanEnv(process.env.ALLOW_REMOTE) ||
+  parseBooleanEnv(process.env.AIONUI_ALLOW_REMOTE) ||
+  parseBooleanEnv(process.env.AIONUI_REMOTE) ||
+  hostRequestsRemote;
 const isResetPasswordMode = process.argv.includes('--resetpass');
 
 // Log environment diagnostics — fire-and-forget so it never blocks startup.

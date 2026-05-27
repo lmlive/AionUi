@@ -38,6 +38,10 @@
       "subAgents": "Sub Agents",
       "workspace": "Workspace"
     },
+    "teammates": "Initial Teammates",
+    "teammatesDesc": "Select local agents to pre-assign as teammates. You can also add more after creation.",
+    "teammatesPlaceholder": "Select teammates (optional)",
+    "noTeammates": "None — leader will spawn agents dynamically",
     "nameRequired": "Please enter a team name",
     "leaderRequired": "Please select a team leader",
     "selectFolder": "Select folder",
@@ -47,7 +51,10 @@
   },
   "removeAgent": {
     "confirmTitle": "Remove Team Member",
-    "confirmContent": "This member is currently active. Force remove?"
+    "confirmContent": "This member is currently active. Force remove?",
+    "retrying": "Retrying... (attempt {attempt}/{maxAttempts})",
+    "retryFailed": "Retry failed: {error}",
+    "rateLimited": "Rate limited (429). Waiting {seconds}s before retry..."
   },
   "emptyState": {
     "subtitle": "Describe your goal and I'll get the team working on it",

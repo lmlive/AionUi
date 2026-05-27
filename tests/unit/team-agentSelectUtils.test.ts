@@ -85,7 +85,10 @@ describe('isTeamCapableBackend', () => {
 
   it('returns false for ACP backend without cached init result', () => {
     expect(isTeamCapableBackend('qwen', cached)).toBe(false);
-    expect(isTeamCapableBackend('codebuddy', cached)).toBe(false);
+  });
+
+  it('returns true for codebuddy (now a known team-capable bridge backend)', () => {
+    expect(isTeamCapableBackend('codebuddy', null)).toBe(true);
   });
 
   it('returns false for unknown backend when cached data is null', () => {
@@ -137,7 +140,7 @@ describe('filterTeamSupportedAgents', () => {
       makeAgent('codebuddy'),
     ];
     const result = filterTeamSupportedAgents(agents, cached);
-    expect(result.map((a: AvailableAgent) => a.backend)).toEqual(['claude', 'gemini', 'codex']);
+    expect(result.map((a: AvailableAgent) => a.backend)).toEqual(['claude', 'gemini', 'codex', 'codebuddy']);
   });
 
   it('uses presetAgentType over backend when available', () => {
@@ -167,23 +170,34 @@ describe('agentKey', () => {
     expect(agentKey({ backend: 'claude' } as AvailableAgent)).toBe('cli::claude');
   });
 
-  it('returns preset:: prefix for custom agents', () => {
-    expect(agentKey({ backend: 'claude', customAgentId: 'my-agent' } as AvailableAgent)).toBe('preset::my-agent');
+  it('keeps local custom agents in the cli namespace', () => {
+    expect(agentKey({ backend: 'custom', customAgentId: 'my-agent' } as AvailableAgent)).toBe('cli::custom::my-agent');
+  });
+
+  it('returns preset:: prefix for preset assistants', () => {
+    expect(agentKey({ backend: 'claude', customAgentId: 'my-agent', isPreset: true } as AvailableAgent)).toBe(
+      'preset::my-agent'
+    );
   });
 });
 
 describe('agentFromKey', () => {
   const agents = [
     { backend: 'claude' } as AvailableAgent,
-    { backend: 'claude', customAgentId: 'my-agent' } as AvailableAgent,
+    { backend: 'custom', customAgentId: 'my-agent' } as AvailableAgent,
+    { backend: 'claude', customAgentId: 'preset-agent', isPreset: true } as AvailableAgent,
   ];
 
   it('finds CLI agent by key', () => {
     expect(agentFromKey('cli::claude', agents)).toBe(agents[0]);
   });
 
+  it('finds local custom agent by key', () => {
+    expect(agentFromKey('cli::custom::my-agent', agents)).toBe(agents[1]);
+  });
+
   it('finds preset agent by key', () => {
-    expect(agentFromKey('preset::my-agent', agents)).toBe(agents[1]);
+    expect(agentFromKey('preset::preset-agent', agents)).toBe(agents[2]);
   });
 
   it('returns undefined for unknown key', () => {

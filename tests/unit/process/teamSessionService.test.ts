@@ -262,6 +262,55 @@ describe('TeamSessionService', () => {
     );
   });
 
+  it('creates local custom team conversations with the selected cli path instead of treating them as presets', async () => {
+    mockConfigGet.mockImplementation(async (key: string) => {
+      if (key === 'acp.config') {
+        return {};
+      }
+      if (key === 'acp.cachedModels') {
+        return undefined;
+      }
+      return undefined;
+    });
+
+    const repo = makeRepo();
+    const conversationService = makeConversationService({
+      createConversation: vi.fn().mockResolvedValue({ id: 'conv-custom', extra: {} }),
+    });
+    const service = new TeamSessionService(repo, makeWorkerTaskManager() as any, conversationService);
+
+    await service.createTeam({
+      userId: 'user-1',
+      name: 'Team Local Custom',
+      workspace: '/workspace',
+      workspaceMode: 'shared',
+      agents: [
+        makeAgent({
+          agentType: 'custom',
+          agentName: 'Local Agent',
+          conversationType: 'acp',
+          cliPath: '/opt/local-agent',
+          customAgentId: 'local-agent-id',
+          isPreset: false,
+        }),
+      ],
+    });
+
+    expect(conversationService.createConversation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'acp',
+        extra: expect.objectContaining({
+          backend: 'custom',
+          cliPath: '/opt/local-agent',
+          customAgentId: 'local-agent-id',
+          teamId: expect.any(String),
+        }),
+      })
+    );
+    const [payload] = (conversationService.createConversation as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(payload.extra.presetAssistantId).toBeUndefined();
+  });
+
   it('creates preset gemini team conversations with preset rules and enabled skills', async () => {
     mockConfigGet.mockImplementation(async (key: string) => {
       if (key === 'language') {

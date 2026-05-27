@@ -43,11 +43,18 @@
     "selectFolder": "フォルダを選択",
     "recentLabel": "最近使用",
     "chooseDifferentFolder": "別のフォルダを選択",
-    "error": "チームの作成に失敗しました"
+    "error": "チームの作成に失敗しました",
+    "teammates": "初期メンバー",
+    "teammatesDesc": "ローカルエージェントをチームメンバーとして事前割り当てします。作成後も追加できます。",
+    "teammatesPlaceholder": "メンバーを選択（任意）",
+    "noTeammates": "なし — リーダーが動的にエージェントを生成します"
   },
   "removeAgent": {
     "confirmTitle": "チームメンバーを削除",
-    "confirmContent": "このメンバーは現在稼働中です。強制的に削除しますか？"
+    "confirmContent": "このメンバーは現在稼働中です。強制的に削除しますか？",
+    "retrying": "再試行中...（{attempt}/{maxAttempts}回目）",
+    "retryFailed": "再試行失敗：{error}",
+    "rateLimited": "レート制限（429）。{seconds}秒後に再試行します..."
   },
   "emptyState": {
     "subtitle": "目標を教えてください。チームを調整してタスクを完了します",

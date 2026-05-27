@@ -7,7 +7,9 @@ import type { AcpInitializeResult } from '@/common/types/acpTypes';
 import { isTeamCapableBackend } from '@/common/types/teamTypes';
 
 export function agentKey(agent: AvailableAgent): string {
-  return agent.customAgentId ? `preset::${agent.customAgentId}` : `cli::${agent.backend}`;
+  if (agent.isPreset && agent.customAgentId) return `preset::${agent.customAgentId}`;
+  if (agent.customAgentId) return `cli::${agent.backend}::${agent.customAgentId}`;
+  return `cli::${agent.backend}`;
 }
 
 export function agentFromKey(key: string, allAgents: AvailableAgent[]): AvailableAgent | undefined {

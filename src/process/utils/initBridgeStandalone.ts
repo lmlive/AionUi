@@ -17,6 +17,7 @@ import { SqliteChannelRepository } from '@process/services/database/SqliteChanne
 import { SqliteConversationRepository } from '@process/services/database/SqliteConversationRepository';
 import { ConversationServiceImpl } from '@process/services/ConversationServiceImpl';
 import { workerTaskManager } from '@process/task/workerTaskManagerSingleton';
+import { TeamSessionService, SqliteTeamRepository } from '@process/team';
 import { initAcpConversationBridge } from '@process/bridge/acpConversationBridge';
 import { initAuthBridge } from '@process/bridge/authBridge';
 import { initBedrockBridge } from '@process/bridge/bedrockBridge';
@@ -43,6 +44,7 @@ import { initSystemSettingsBridge } from '@process/bridge/systemSettingsBridge';
 import { initTaskBridge } from '@process/bridge/taskBridge';
 import { initSpeechToTextBridge } from '@process/bridge/speechToTextBridge';
 import { initHubBridge } from '@process/bridge/hubBridge';
+import { initTeamBridge } from '@process/bridge/teamBridge';
 
 logger.config({ print: true });
 
@@ -50,6 +52,8 @@ export async function initBridgeStandalone(): Promise<void> {
   const repo = new SqliteConversationRepository();
   const conversationService = new ConversationServiceImpl(repo);
   const channelRepo = new SqliteChannelRepository();
+  const teamRepo = new SqliteTeamRepository();
+  const teamSessionService = new TeamSessionService(teamRepo, workerTaskManager, conversationService);
 
   // Skipped (Electron-only): dialogBridge, applicationBridge (partial — see applicationBridgeCore),
   // windowControlsBridge, updateBridge, webuiBridge
@@ -80,6 +84,7 @@ export async function initBridgeStandalone(): Promise<void> {
   initStarOfficeBridge();
   initSpeechToTextBridge();
   initHubBridge();
+  initTeamBridge(teamSessionService);
 
   // Initialize ACP detector to scan for installed CLI agents (claude, codex, etc.)
   // Must mirror Electron's initializeAcpDetector() call in src/index.ts

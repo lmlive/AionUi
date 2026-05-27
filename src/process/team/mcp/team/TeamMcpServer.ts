@@ -146,6 +146,37 @@ export class TeamMcpServer {
       .toLowerCase();
   }
 
+  /**
+   * Classify whether a spawn error is transient and worth retrying.
+   * Returns true for: process crashes, connection failures, timeouts,
+   * rate limits, port conflicts, and temporary resource exhaustion.
+   * Returns false for: auth failures, invalid config, missing agents,
+   * and business-logic validation errors.
+   */
+  private static isRetryableSpawnError(errorMessage: string): boolean {
+    const msg = errorMessage.toLowerCase();
+
+    // Rate limiting / quota — retry with backoff
+    if (/429|rate.?limit|quota|too many requests/.test(msg)) return true;
+
+    // Transient process/connection failures
+    if (/econnrefused|econnreset|epipe|etimedout|spawn.*enoent/.test(msg)) return true;
+    if (/process exited|acp connection closed|connection lost|socket hang up/.test(msg)) return true;
+    if (/eacces|eperm/.test(msg) && /spawn|start/.test(msg)) return true;
+
+    // Port / resource conflicts — may resolve after cleanup
+    if (/eaddrinuse|address already in use|port.*in use/.test(msg)) return true;
+
+    // Timeout during initialization
+    if (/timeout|timed out/.test(msg)) return true;
+
+    // OOM or resource exhaustion
+    if (/out of memory|enomem|cannot allocate/.test(msg)) return true;
+
+    // Non-retryable: validation, auth, config errors
+    return false;
+  }
+
   private resolveSlotId(nameOrSlotId: string): string | undefined {
     const agents = this.params.getAgents();
     const bySlot = agents.find((a) => a.slotId === nameOrSlotId);
@@ -377,6 +408,10 @@ export class TeamMcpServer {
     const model = args.model ? String(args.model) : undefined;
     let agentType = args.agent_type ? String(args.agent_type) : undefined;
 
+    if (!name.trim()) {
+      throw new Error('Agent name is required.');
+    }
+
     // When a preset is requested, resolve its backend from config so the caller
     // does not need to specify agent_type separately.
     if (customAgentId) {
@@ -432,21 +467,59 @@ export class TeamMcpServer {
       throw new Error('Agent spawning is not available for this team.');
     }
 
-    const newAgent = await spawnAgent(name, agentType, model, customAgentId);
-    const agents = getAgents();
-    const fromAgent =
-      (callerSlotId && agents.find((a) => a.slotId === callerSlotId)) ??
-      agents.find((a) => a.role === 'leader') ??
-      agents[0];
-    const fromSlotId = fromAgent?.slotId ?? 'unknown';
-    await mailbox.write({
-      teamId,
-      toAgentId: newAgent.slotId,
-      fromAgentId: fromSlotId,
-      content: `You have been spawned as "${name}" and added to the team. Check the task board and await instructions.`,
-    });
-    this.safeWake(newAgent.slotId, `spawn ${name}`);
-    return `Teammate "${name}" (${newAgent.slotId}) has been created and joined the team. You can now assign tasks and send messages to them.`;
+    // Smart retry logic for transient spawn failures
+    const MAX_SPAWN_RETRIES = 2;
+    const BASE_DELAY_MS = 2000;
+    let lastError: Error | undefined;
+
+    for (let attempt = 0; attempt <= MAX_SPAWN_RETRIES; attempt++) {
+      try {
+        const newAgent = await spawnAgent(name, agentType, model, customAgentId);
+        const agents = getAgents();
+        const fromAgent =
+          (callerSlotId && agents.find((a) => a.slotId === callerSlotId)) ??
+          agents.find((a) => a.role === 'leader') ??
+          agents[0];
+        const fromSlotId = fromAgent?.slotId ?? 'unknown';
+        await mailbox.write({
+          teamId,
+          toAgentId: newAgent.slotId,
+          fromAgentId: fromSlotId,
+          content: `You have been spawned as "${name}" and added to the team. Check the task board and await instructions.`,
+        });
+        this.safeWake(newAgent.slotId, `spawn ${name}`);
+
+        if (attempt > 0) {
+          console.log(`[TeamMcpServer] handleSpawnAgent: "${name}" succeeded on attempt ${attempt + 1}`);
+        }
+        return `Teammate "${name}" (${newAgent.slotId}) has been created and joined the team. You can now assign tasks and send messages to them.`;
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        const errorMsg = lastError.message;
+
+        // Classify error: retryable transient failures vs permanent failures
+        const isRetryable = attempt < MAX_SPAWN_RETRIES && TeamMcpServer.isRetryableSpawnError(errorMsg);
+
+        if (!isRetryable) {
+          console.error(
+            `[TeamMcpServer] handleSpawnAgent: "${name}" failed permanently (attempt ${attempt + 1}): ${errorMsg}`
+          );
+          throw lastError;
+        }
+
+        // Exponential backoff with jitter for rate-limit errors
+        const isRateLimit = /429|rate.?limit|quota|too many requests/i.test(errorMsg);
+        const delay = isRateLimit ? BASE_DELAY_MS * 2 ** attempt + Math.random() * 1000 : BASE_DELAY_MS * 2 ** attempt;
+
+        console.warn(
+          `[TeamMcpServer] handleSpawnAgent: "${name}" failed (attempt ${attempt + 1}/${MAX_SPAWN_RETRIES + 1}), retrying in ${Math.round(delay)}ms: ${errorMsg}`
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+
+    // Should not reach here, but safety fallback
+    throw lastError ?? new Error(`Failed to spawn agent "${name}" after ${MAX_SPAWN_RETRIES + 1} attempts`);
   }
 
   private async handleTaskCreate(args: Record<string, unknown>): Promise<string> {

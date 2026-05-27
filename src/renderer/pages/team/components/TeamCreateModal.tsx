@@ -36,6 +36,7 @@ const TeamCreateModal: React.FC<Props> = ({ visible, onClose, onCreated }) => {
   const { cliAgents, presetAssistants } = useConversationAgents();
   const [name, setName] = useState('');
   const [dispatchAgentKey, setDispatchAgentKey] = useState<string | undefined>(undefined);
+  const [teammateKeys, setTeammateKeys] = useState<string[]>([]);
   const [workspace, setWorkspace] = useState('');
   const [loading, setLoading] = useState(false);
   const nameInputRef = useRef<RefInputType | null>(null);
@@ -73,6 +74,7 @@ const TeamCreateModal: React.FC<Props> = ({ visible, onClose, onCreated }) => {
   const handleClose = () => {
     setName('');
     setDispatchAgentKey(undefined);
+    setTeammateKeys([]);
     setWorkspace('');
     onClose();
   };
@@ -104,7 +106,27 @@ const TeamCreateModal: React.FC<Props> = ({ visible, onClose, onCreated }) => {
         conversationType: resolveConversationType(dispatchAgentType),
         cliPath: dispatchAgent?.cliPath,
         customAgentId: dispatchAgent?.customAgentId,
+        isPreset: dispatchAgent?.isPreset,
       });
+
+      // Add pre-selected teammates
+      for (const tk of teammateKeys) {
+        const teammateAgent = agentFromKey(tk, allAgents);
+        if (!teammateAgent) continue;
+        const teammateType = resolveTeamAgentType(teammateAgent, dispatchAgentType);
+        agents.push({
+          slotId: '',
+          conversationId: '',
+          role: 'teammate',
+          status: 'pending',
+          agentType: teammateType,
+          agentName: teammateAgent.name,
+          conversationType: resolveConversationType(teammateType),
+          cliPath: teammateAgent?.cliPath,
+          customAgentId: teammateAgent?.customAgentId,
+          isPreset: teammateAgent?.isPreset,
+        });
+      }
 
       const team = await ipcBridge.team.create.invoke({
         userId,
@@ -208,7 +230,11 @@ const TeamCreateModal: React.FC<Props> = ({ visible, onClose, onCreated }) => {
                   allowClear
                   placeholder={t('team.create.dispatchAgentPlaceholder', { defaultValue: 'Select team leader' })}
                   value={dispatchAgentKey}
-                  onChange={(value) => setDispatchAgentKey(value as string | undefined)}
+                  onChange={(value) => {
+                    const key = value as string | undefined;
+                    setDispatchAgentKey(key);
+                    if (key) setTeammateKeys((prev) => prev.filter((k) => k !== key));
+                  }}
                   filterOption={(inputValue, option) => {
                     const optionValue = (option as React.ReactElement<{ value?: string }>)?.props?.value;
                     if (!optionValue) return false;
@@ -252,6 +278,69 @@ const TeamCreateModal: React.FC<Props> = ({ visible, onClose, onCreated }) => {
                   )}
                 </AionSelect>
               )}
+            </div>
+          </FormItem>
+
+          {/* Initial Teammates */}
+          <FormItem label={t('team.create.teammates', { defaultValue: 'Initial Teammates' })}>
+            <div className='flex flex-col gap-8px'>
+              <span className='text-12px leading-18px text-t-secondary'>
+                {t('team.create.teammatesDesc', {
+                  defaultValue: 'Select local agents to pre-assign as teammates. You can also add more after creation.',
+                })}
+              </span>
+              <AionSelect
+                data-testid='team-create-teammates-select'
+                showSearch
+                allowClear
+                mode='multiple'
+                placeholder={t('team.create.teammatesPlaceholder', { defaultValue: 'Select teammates (optional)' })}
+                value={teammateKeys.length > 0 ? teammateKeys : undefined}
+                onChange={(value) => setTeammateKeys((value as string[]) ?? [])}
+                filterOption={(inputValue, option) => {
+                  const optionValue = (option as React.ReactElement<{ value?: string }>)?.props?.value;
+                  if (!optionValue) return false;
+                  const agent = agentFromKey(optionValue, allAgents);
+                  if (!agent) return false;
+                  return agent.name.toLowerCase().includes(inputValue.toLowerCase());
+                }}
+                renderFormat={(_option, value) => {
+                  const strVal = value as unknown as string;
+                  if (!strVal) return strVal;
+                  const agent = agentFromKey(strVal, allAgents);
+                  if (!agent) return strVal;
+                  return <AgentOptionLabel agent={agent} />;
+                }}
+              >
+                {supportedCliAgents.length > 0 && (
+                  <OptGroup label={t('conversation.dropdown.cliAgents', { defaultValue: 'CLI Agents' })}>
+                    {supportedCliAgents
+                      .filter((agent) => agentKey(agent) !== dispatchAgentKey)
+                      .map((agent) => {
+                        const key = agentKey(agent);
+                        return (
+                          <Option key={key} value={key} data-testid={`team-create-teammate-option-${key}`}>
+                            <AgentOptionLabel agent={agent} />
+                          </Option>
+                        );
+                      })}
+                  </OptGroup>
+                )}
+                {supportedPresetAssistants.length > 0 && (
+                  <OptGroup label={t('conversation.dropdown.presetAssistants', { defaultValue: 'Preset Assistants' })}>
+                    {supportedPresetAssistants
+                      .filter((agent) => agentKey(agent) !== dispatchAgentKey)
+                      .map((agent) => {
+                        const key = agentKey(agent);
+                        return (
+                          <Option key={key} value={key} data-testid={`team-create-teammate-option-${key}`}>
+                            <AgentOptionLabel agent={agent} />
+                          </Option>
+                        );
+                      })}
+                  </OptGroup>
+                )}
+              </AionSelect>
             </div>
           </FormItem>
 

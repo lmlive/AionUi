@@ -38,6 +38,10 @@
       "subAgents": "子 Agent",
       "workspace": "工作空间"
     },
+    "teammates": "初始成员",
+    "teammatesDesc": "选择本地 Agent 预分配为团队成员。创建后仍可继续添加。",
+    "teammatesPlaceholder": "选择成员（可选）",
+    "noTeammates": "不预设 — Leader 将动态生成 Agent",
     "nameRequired": "请输入团队名称",
     "leaderRequired": "请选择团队 Leader",
     "selectFolder": "选择工作目录",
@@ -47,7 +51,10 @@
   },
   "removeAgent": {
     "confirmTitle": "移除团队成员",
-    "confirmContent": "该成员正在工作中，确定要强制移除吗？"
+    "confirmContent": "该成员正在工作中，确定要强制移除吗？",
+    "retrying": "重试中...（第 {attempt}/{maxAttempts} 次）",
+    "retryFailed": "重试失败：{error}",
+    "rateLimited": "触发限流（429），等待 {seconds} 秒后重试..."
   },
   "emptyState": {
     "subtitle": "描述你的目标，我来协调团队搞定它",

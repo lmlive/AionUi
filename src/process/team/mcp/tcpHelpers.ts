@@ -4,6 +4,7 @@
 // and their stdio bridges (teamMcpStdio, teamGuideMcpStdio).
 // Provides length-prefixed JSON message framing over TCP sockets.
 
+import * as fs from 'node:fs';
 import * as net from 'node:net';
 import * as path from 'node:path';
 
@@ -190,17 +191,28 @@ export function sendTcpRequest<T = { result?: string; error?: string }>(
  * In packaged:  app.asar.unpacked/out/main/  (asarUnpack makes it a real file)
  */
 export function resolveMcpScriptDir(): string {
-  const mainModuleDir =
-    typeof require !== 'undefined' && require.main?.filename ? path.dirname(require.main.filename) : __dirname;
-  const baseDir = path.basename(mainModuleDir) === 'chunks' ? path.dirname(mainModuleDir) : mainModuleDir;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { app } = require('electron');
-    if (app.isPackaged) {
-      return baseDir.replace('app.asar', 'app.asar.unpacked');
+  // Do not use require.main.filename here. Under PM2 or other process managers it
+  // points at the process-manager entrypoint (for example pm2/lib/ProcessContainerFork.js),
+  // which made Team sessions inject a bogus stdio script path like
+  // .../node_modules/pm2/lib/team-mcp-stdio.js and therefore lose all team_* tools.
+  const cwd = process.cwd();
+  const moduleDir = __dirname;
+  const moduleBaseDir = path.basename(moduleDir) === 'chunks' ? path.dirname(moduleDir) : moduleDir;
+  const candidates = [
+    // Server/dev mode in this deployment: PM2 starts from the project root and
+    // the compiled stdio bridges are emitted to out/main/.
+    path.join(cwd, 'out', 'main'),
+    // Some builds may colocate bridge scripts with the server bundle.
+    path.join(cwd, 'dist-server'),
+    moduleBaseDir,
+    moduleBaseDir.replace('app.asar', 'app.asar.unpacked'),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(path.join(candidate, 'team-mcp-stdio.js'))) {
+      return candidate;
     }
-  } catch {
-    // Not in Electron (unit tests / CLI mode) — use baseDir as-is
   }
-  return baseDir;
+
+  return moduleBaseDir;
 }

@@ -250,6 +250,12 @@ export async function startWebServerWithInstance(port: number, allowRemote = fal
 
   // 创建 Express 应用和服务器 / Create Express app and server
   const app = express();
+  if (allowRemote) {
+    // AionUi is commonly exposed through Nginx/remote proxies in server mode.
+    // express-rate-limit rejects proxied requests carrying X-Forwarded-For
+    // unless Express explicitly trusts the proxy chain.
+    app.set('trust proxy', 1);
+  }
   const server = createServer(app);
   // Use noServer mode so we can route WebSocket upgrades manually.
   // This lets us forward Vite HMR upgrades to the Vite dev server during

@@ -293,8 +293,9 @@ export class TeamSessionService {
   }> {
     const { teamId, teamName, workspace, agent, agents, inheritedSessionMode, isInheritedWorkspace } = params;
     const backend = this.resolveBackend(agent.agentType, agents) as AgentBackend;
-    // remote agents use customAgentId as remoteAgentId, not as a preset indicator
-    const isPreset = Boolean(agent.customAgentId) && backend !== 'remote';
+    // Local custom agents and remote agents also carry customAgentId, but only
+    // preset assistants should load preset rules and skip direct CLI config.
+    const isPreset = agent.isPreset ?? (Boolean(agent.customAgentId) && backend !== 'remote' && backend !== 'custom');
     const preferredModelId =
       agent.model ||
       (getConversationTypeForBackend(backend) === 'acp' ? await this.resolvePreferredAcpModelId(backend) : undefined);
@@ -413,6 +414,7 @@ export class TeamSessionService {
       status: this.mapRecoveredStatus(conversation.status),
       cliPath: extra.cliPath || extra.gateway?.cliPath,
       customAgentId: extra.customAgentId || extra.presetAssistantId,
+      isPreset: Boolean(extra.presetAssistantId),
       model: extra.currentModelId || (conversation as { model?: { useModel?: string } }).model?.useModel,
     };
   }
@@ -773,6 +775,7 @@ export class TeamSessionService {
         conversationType: this.resolveConversationType(resolvedType) as 'acp',
         model,
         customAgentId,
+        isPreset: Boolean(customAgentId),
       });
       // Inject team MCP stdio config into the new agent's conversation (with agent identity)
       const stdioConfig = session?.getStdioConfig(newAgent.slotId);

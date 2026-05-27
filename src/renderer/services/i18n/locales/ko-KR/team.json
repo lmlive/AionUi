@@ -43,11 +43,18 @@
     "selectFolder": "폴더 선택",
     "recentLabel": "최근 사용",
     "chooseDifferentFolder": "다른 폴더 선택",
-    "error": "팀 생성에 실패했습니다"
+    "error": "팀 생성에 실패했습니다",
+    "teammates": "초기 팀원",
+    "teammatesDesc": "로컬 에이전트를 팀원으로 미리 지정합니다. 생성 후에도 추가할 수 있습니다.",
+    "teammatesPlaceholder": "팀원 선택 (선택사항)",
+    "noTeammates": "없음 — 리더가 동적으로 에이전트를 생성합니다"
   },
   "removeAgent": {
     "confirmTitle": "팀 멤버 제거",
-    "confirmContent": "이 멤버는 현재 활성 상태입니다. 강제 제거하시겠습니까?"
+    "confirmContent": "이 멤버는 현재 활성 상태입니다. 강제 제거하시겠습니까?",
+    "retrying": "재시도 중...({attempt}/{maxAttempts}회)",
+    "retryFailed": "재시도 실패: {error}",
+    "rateLimited": "요청 제한(429). {seconds}초 후 재시도..."
   },
   "emptyState": {
     "subtitle": "목표를 알려주세요. 팀을 조율해서 완료하겠습니다",
