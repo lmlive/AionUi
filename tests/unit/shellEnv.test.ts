@@ -168,7 +168,7 @@ describe('getEnhancedEnv', () => {
     const result = getEnhancedEnv();
     expect(typeof result.PATH).toBe('string');
     // Spot-check: no undefined string values were injected
-    for (const [k, v] of Object.entries(result)) {
+    for (const [_k, v] of Object.entries(result)) {
       expect(typeof v).toBe('string');
     }
   });
@@ -444,6 +444,56 @@ describe('resolveNpxPath', () => {
     const { resolveNpxPath } = await import('@process/utils/shellEnv');
 
     expect(resolveNpxPath({ PATH: '/tooling' })).toBe('bun.exe');
+  });
+
+  it('uses bundled bun only when the binary exists', async () => {
+    Object.defineProperty(process, 'platform', { value: 'linux' });
+
+    vi.doMock('fs', async () => {
+      const actual = await vi.importActual<typeof import('fs')>('fs');
+      return {
+        ...actual,
+        existsSync: vi.fn((p: string) => p.endsWith('/resources/bundled-bun/linux-x64') || p.endsWith('/bun')),
+        readFileSync: vi.fn((p: string, encoding?: BufferEncoding) => {
+          if (p === '/proc/cpuinfo') return 'flags\t: avx avx2';
+          return actual.readFileSync(p, encoding);
+        }),
+      };
+    });
+
+    vi.doMock('child_process', () => ({
+      execFileSync: vi.fn(),
+      execFile: vi.fn(),
+    }));
+
+    const { resolveNpxPath } = await import('@process/utils/shellEnv');
+
+    expect(resolveNpxPath({ PATH: '/tooling' })).toMatch(/resources\/bundled-bun\/linux-x64\/bun$/);
+  });
+
+  it('falls back to system bun when bundled bun directory exists without the binary', async () => {
+    Object.defineProperty(process, 'platform', { value: 'linux' });
+
+    vi.doMock('fs', async () => {
+      const actual = await vi.importActual<typeof import('fs')>('fs');
+      return {
+        ...actual,
+        existsSync: vi.fn((p: string) => p.endsWith('/resources/bundled-bun/linux-x64')),
+        readFileSync: vi.fn((p: string, encoding?: BufferEncoding) => {
+          if (p === '/proc/cpuinfo') return 'flags\t: avx avx2';
+          return actual.readFileSync(p, encoding);
+        }),
+      };
+    });
+
+    vi.doMock('child_process', () => ({
+      execFileSync: vi.fn(),
+      execFile: vi.fn(),
+    }));
+
+    const { resolveNpxPath } = await import('@process/utils/shellEnv');
+
+    expect(resolveNpxPath({ PATH: '/tooling' })).toBe('bun');
   });
 });
 

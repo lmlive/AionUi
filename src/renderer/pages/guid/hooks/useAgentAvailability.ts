@@ -35,7 +35,7 @@ export const useAgentAvailability = ({
       if (agentType === 'gemini') {
         return isGoogleAuth || (modelList != null && modelList.length > 0);
       }
-      return availableAgents?.some((agent) => agent.backend === agentType) ?? false;
+      return availableAgents?.some((agent) => agent.backend === agentType && agent.available !== false) ?? false;
     },
     [modelList, availableAgents, isGoogleAuth]
   );

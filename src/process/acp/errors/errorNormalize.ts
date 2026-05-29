@@ -47,6 +47,8 @@ const RETRYABLE_ERRNO = new Set(['ECONNREFUSED', 'ECONNRESET', 'EPIPE', 'ETIMEDO
 const AUTH_KEYWORDS_RE =
   /\btoken\s+(is\s+)?expired\b|\bsso\s+login\b|\bunauthorized\b|\bforbidden\b|\bcredential\b|\bapi[_ ]?key\b|\bnot\s+authenticated\b|\baccess\s+denied\b/i;
 
+const RATE_LIMIT_RE = /\brate\s*limit(ed|ing)?\b|\btoo\s+many\s+requests?\b|\bquota\s+(exceeded|reached)\b|\b429\b/i;
+
 /**
  * Normalize any error into AcpError.
  * If already AcpError, return as-is.
@@ -74,6 +76,11 @@ export function normalizeError(error: unknown): AcpError {
     // auth-related keywords to surface the correct auth flow to the user.
     if (mapped && mapped.code !== 'AUTH_REQUIRED' && isAuthRelatedMessage(error.message)) {
       return new AcpError('AUTH_REQUIRED', error.message, { cause: error, retryable: true });
+    }
+
+    // Detect rate limiting — agents typically use -32603 (Internal error) for 429s.
+    if (isRateLimitMessage(error.message)) {
+      return new AcpError('RATE_LIMITED', error.message, { cause: error, retryable: true, retryDelayMs: 10_000 });
     }
 
     if (mapped) {
@@ -122,4 +129,9 @@ export function isRetryablePromptError(error: unknown): boolean {
 /** Detect auth-related failures from error messages — for agents that don't use -32000. */
 function isAuthRelatedMessage(message: string): boolean {
   return AUTH_KEYWORDS_RE.test(message);
+}
+
+/** Detect rate limiting from error messages. */
+function isRateLimitMessage(message: string): boolean {
+  return RATE_LIMIT_RE.test(message);
 }

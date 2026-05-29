@@ -150,7 +150,8 @@ export type SessionSignal =
   | { type: 'turn_finished' }
   | { type: 'session_expired' }
   | { type: 'auth_required'; auth: AuthRequiredData }
-  | { type: 'error'; message: string; recoverable: boolean };
+  | { type: 'error'; message: string; recoverable: boolean }
+  | { type: 'retrying'; attempt: number; max: number; reason: string };
 
 // ─── Callbacks (Session → Application) ──────────────────────────
 
@@ -178,7 +179,8 @@ export type SignalEvent =
   | { type: 'context_usage'; usage: ContextUsage }
   | { type: 'permission_request'; data: PermissionUIData }
   | { type: 'auth_required'; auth: AuthRequiredData }
-  | { type: 'error'; message: string; recoverable: boolean };
+  | { type: 'error'; message: string; recoverable: boolean }
+  | { type: 'retrying'; attempt: number; max: number; reason: string };
 
 export type RuntimeOptions = {
   idleTimeoutMs?: number;

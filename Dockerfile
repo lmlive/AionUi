@@ -1,4 +1,5 @@
-FROM node:20-slim AS builder
+# ---- Build stage ----
+FROM node:22-slim AS builder
 WORKDIR /app
 
 # Install bun
@@ -27,8 +28,11 @@ COPY package.json bun.lock ./
 COPY patches/ ./patches/
 RUN bun install --production --ignore-scripts
 
+# Deployment mode (web = Docker/server, local = Electron desktop)
+ENV DEPLOY_MODE=web
 ENV PORT=3000
 ENV NODE_ENV=production
+# Set to "true" to allow connections from any network interface
 ENV ALLOW_REMOTE=true
 ENV DATA_DIR=/data
 

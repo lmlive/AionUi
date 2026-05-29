@@ -80,6 +80,10 @@ export class MessageTranslator {
 
   constructor(private readonly conversationId: string) {}
 
+  get conversationIdForFallback(): string {
+    return this.conversationId;
+  }
+
   get activeEntryCount(): number {
     return this.messageMap.size;
   }

@@ -307,6 +307,7 @@ const ERROR_CODE_TO_TYPE: Record<AcpErrorCode, AcpErrorType> = {
   PROCESS_CRASHED: AcpErrorType.NETWORK_ERROR,
   INVALID_STATE: AcpErrorType.CONNECTION_NOT_READY,
   INTERNAL_ERROR: AcpErrorType.INTERNAL_ERROR,
+  RATE_LIMITED: AcpErrorType.RATE_LIMITED,
   // Granular ACP protocol errors — pass through directly
   ACP_PARSE_ERROR: AcpErrorType.ACP_PARSE_ERROR,
   INVALID_ACP_REQUEST: AcpErrorType.INVALID_ACP_REQUEST,

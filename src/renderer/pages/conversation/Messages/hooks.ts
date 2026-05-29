@@ -363,6 +363,43 @@ export const useRemoveMessageByMsgId = () => {
   );
 };
 
+/**
+ * Resend a user message: remove it and all subsequent messages, then re-send.
+ * 重发用户消息：删除该消息及之后的所有消息，然后重新发送。
+ */
+export const useResendMessage = () => {
+  const update = useUpdateMessageList();
+  const messageList = useMessageList();
+
+  return useCallback(
+    (msgId: string) => {
+      const idx = messageList.findIndex((m) => m.msg_id === msgId);
+      if (idx < 0) return;
+      const target = messageList[idx];
+      if (target.type !== 'text' || target.position !== 'right') return;
+      const content =
+        typeof target.content === 'object' && 'content' in target.content
+          ? String((target.content as { content: string }).content)
+          : '';
+      const conversationId = target.conversation_id;
+      if (!content || !conversationId) return;
+      // Remove the target message and all subsequent messages from the local list
+      update((list) => list.slice(0, idx));
+      // Re-send via IPC
+      ipcBridge.conversation.sendMessage
+        .invoke({
+          input: content,
+          msg_id: crypto.randomUUID(),
+          conversation_id: conversationId,
+        })
+        .catch((err: unknown) => {
+          console.error('[useResendMessage] Failed to resend:', err);
+        });
+    },
+    [messageList, update]
+  );
+};
+
 export const useMessageLstCache = (key: string) => {
   const update = useUpdateMessageList();
   useEffect(() => {

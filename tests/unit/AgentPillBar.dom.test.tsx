@@ -32,6 +32,10 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
 }));
 
+vi.mock('@arco-design/web-react', () => ({
+  Tooltip: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 vi.mock('@/renderer/hooks/context/LayoutContext', () => ({
   useLayoutContext: () => ({ isMobile: false }),
 }));
@@ -50,6 +54,8 @@ vi.mock('@/renderer/utils/platform', () => ({
 }));
 
 vi.mock('@icon-park/react', () => ({
+  CheckOne: () => <span data-testid='icon-check'>CheckIcon</span>,
+  CloseOne: () => <span data-testid='icon-close'>CloseIcon</span>,
   Plus: () => <span data-testid='icon-plus'>PlusIcon</span>,
   Robot: () => <span data-testid='icon-robot'>RobotIcon</span>,
 }));
@@ -112,6 +118,23 @@ describe('AgentPillBar', () => {
     expect(pill).toBeTruthy();
     fireEvent.click(pill);
     expect(onSelectAgent).toHaveBeenCalledWith('gemini');
+  });
+
+  it('marks unavailable agents and ignores clicks', () => {
+    const onSelectAgent = vi.fn();
+    const agents: AvailableAgent[] = [
+      makeAgent({ backend: 'claude', name: 'Claude', available: true }),
+      makeAgent({ backend: 'qwen', name: 'Qwen', available: false }),
+    ];
+    render(<AgentPillBar {...defaultProps} availableAgents={agents} onSelectAgent={onSelectAgent} />);
+
+    const qwenPill = screen.getByText('Qwen').closest('[data-agent-pill]') as HTMLElement;
+    expect(qwenPill.getAttribute('data-agent-available')).toBe('false');
+    expect(qwenPill.getAttribute('aria-disabled')).toBe('true');
+    expect(screen.getByTestId('icon-close')).toBeTruthy();
+
+    fireEvent.click(qwenPill);
+    expect(onSelectAgent).not.toHaveBeenCalled();
   });
 
   it('marks selected agent with data attribute', () => {

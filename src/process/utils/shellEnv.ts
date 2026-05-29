@@ -50,6 +50,14 @@ function detectAvx2(): boolean {
   return _hasAvx2;
 }
 
+function getBunBinaryName(): string {
+  return process.platform === 'win32' ? 'bun.exe' : 'bun';
+}
+
+function hasBundledBunBinary(dir: string): boolean {
+  return existsSync(dir) && existsSync(path.join(dir, getBunBinaryName()));
+}
+
 /**
  * Get the directory containing the bundled bun binary.
  *
@@ -67,11 +75,11 @@ export function getBundledBunDir(): string | null {
   if (needsBaseline) {
     const baselineDir = path.join(resourcesPath, 'bundled-bun', `${platform}-${arch}-baseline`);
     // No baseline → return null. Falling through to the standard build would SIGILL.
-    return existsSync(baselineDir) ? baselineDir : null;
+    return hasBundledBunBinary(baselineDir) ? baselineDir : null;
   }
 
   const bunDir = path.join(resourcesPath, 'bundled-bun', `${platform}-${arch}`);
-  return existsSync(bunDir) ? bunDir : null;
+  return hasBundledBunBinary(bunDir) ? bunDir : null;
 }
 
 /**
@@ -605,10 +613,10 @@ export function normalizeNpxArgsForBundledBun(args: string[]): string[] {
 export function resolveNpxPath(_env: Record<string, string | undefined>): string {
   const bundledBunDir = getBundledBunDir();
   if (bundledBunDir) {
-    return path.join(bundledBunDir, process.platform === 'win32' ? 'bun.exe' : 'bun');
+    return path.join(bundledBunDir, getBunBinaryName());
   }
 
-  return process.platform === 'win32' ? 'bun.exe' : 'bun';
+  return getBunBinaryName();
 }
 
 /**

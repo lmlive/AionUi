@@ -152,14 +152,21 @@ export class AionrsAgent {
     try {
       await Promise.race([this.readyPromise, timeout]);
     } catch (err) {
-      // If resume failed (session not found), fallback to a new session
+      // If resume failed (session not found or corrupt), fallback to a fresh
+      // generated session. Do not reuse the old conversation id as --session-id:
+      // aionrs may still have it in sessions/index.json even when the backing
+      // session file is missing, which makes startup fail with
+      // "Session ID '<id>' already exists".
       if (this.options.resume) {
         console.error('[AionrsAgent] Resume failed, falling back to new session:', err);
-        this.options = { ...this.options, resume: undefined, sessionId: this.options.resume };
+        this.options = { ...this.options, resume: undefined, sessionId: undefined };
         this.ready = false;
         this.readyPromise = new Promise((resolve, reject) => {
           this.readyResolve = resolve;
           this.readyReject = reject;
+        });
+        this.mcpReadyPromise = new Promise((resolve) => {
+          this.mcpReadyResolve = resolve;
         });
         return this.start();
       }

@@ -83,5 +83,10 @@
   "import": "가져오기",
   "processing": "처리 중...",
   "optional": "(선택 사항)",
-  "clear": "지우기"
+  "clear": "지우기",
+  "unit": {
+    "minute_short": "분",
+    "second_short": "초"
+  },
+  "resend": "재전송"
 }

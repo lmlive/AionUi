@@ -83,5 +83,10 @@
   "import": "インポート",
   "processing": "処理中...",
   "optional": "（任意）",
-  "clear": "クリア"
+  "clear": "クリア",
+  "unit": {
+    "minute_short": "分",
+    "second_short": "秒"
+  },
+  "resend": "再送"
 }

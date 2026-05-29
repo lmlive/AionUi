@@ -158,12 +158,22 @@ function detectHttps(req?: Request): boolean {
     return true;
   }
 
-  if (process.env.SERVER_BASE_URL?.startsWith('https://')) {
+  if (req?.secure) {
     return true;
   }
 
-  if (req?.secure) {
-    return true;
+  if (process.env.SERVER_BASE_URL?.startsWith('https://')) {
+    if (!req) {
+      return true;
+    }
+
+    try {
+      const publicUrl = new URL(process.env.SERVER_BASE_URL);
+      const requestHost = req.hostname || req.get('host')?.split(':')[0];
+      return requestHost === publicUrl.hostname;
+    } catch {
+      return false;
+    }
   }
 
   return false;

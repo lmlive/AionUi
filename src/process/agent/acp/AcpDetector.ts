@@ -5,7 +5,7 @@
  */
 
 import type { AcpBackendConfig } from '@/common/types/acpTypes';
-import { POTENTIAL_ACP_CLIS } from '@/common/types/acpTypes';
+import { ACP_BACKENDS_ALL, POTENTIAL_ACP_CLIS } from '@/common/types/acpTypes';
 import type { AcpDetectedAgent } from '@/common/types/detectedAgent';
 import { ExtensionRegistry } from '@process/extensions';
 import { safeExec, safeExecFile } from '@process/utils/safeExec';
@@ -149,21 +149,33 @@ class AcpDetector {
 
   /**
    * Detect built-in ACP CLI agents via async batch CLI availability check.
+   *
+   * Backends with `builtinBridge: true` (claude, codex, codebuddy) are always
+   * included regardless of PATH availability. They use dedicated ACP bridge
+   * connectors (claude-agent-acp, codex-acp, codebuddy-acp) that locate the
+   * CLI themselves via the enhanced shell environment at session start time.
+   * PATH detection is insufficient for server/PM2 processes that lack the
+   * user's full shell PATH.
    */
   async detectBuiltinAgents(): Promise<AcpDetectedAgent[]> {
     const allCmds = POTENTIAL_ACP_CLIS.map((cli) => cli.cmd);
     const available = await this.batchCheckCliAvailability(allCmds);
-    const missing = allCmds.filter((cmd) => !available.has(cmd));
 
-    if (missing.length > 0) {
+    // Log only CLIs that are not on PATH and don't have a bridge fallback
+    const missingWithoutBridge = allCmds.filter((cmd) => {
+      if (available.has(cmd)) return false;
+      const cli = POTENTIAL_ACP_CLIS.find((c) => c.cmd === cmd);
+      return cli ? !ACP_BACKENDS_ALL[cli.backendId]?.builtinBridge : true;
+    });
+    if (missingWithoutBridge.length > 0) {
       const envPath = this.enhancedEnv?.PATH ?? process.env.PATH ?? '(empty)';
       console.info(
-        `[AcpDetector] CLI not found: [${missing.join(', ')}]. ` +
+        `[AcpDetector] CLI not found: [${missingWithoutBridge.join(', ')}]. ` +
           `PATH(${envPath.length} chars): ${envPath.substring(0, 500)}`
       );
     }
 
-    return POTENTIAL_ACP_CLIS.filter((cli) => available.has(cli.cmd)).map((cli) => ({
+    const detected: AcpDetectedAgent[] = POTENTIAL_ACP_CLIS.filter((cli) => available.has(cli.cmd)).map((cli) => ({
       id: cli.backendId,
       name: cli.name,
       kind: 'acp' as const,
@@ -172,6 +184,26 @@ class AcpDetector {
       cliPath: cli.cmd,
       acpArgs: cli.args,
     }));
+
+    // Always include bridge backends not found on PATH — their dedicated connectors
+    // handle the actual CLI invocation and are available via the bundled bun runtime.
+    const detectedIds = new Set(detected.map((a) => a.id));
+    for (const cli of POTENTIAL_ACP_CLIS) {
+      if (detectedIds.has(cli.backendId)) continue;
+      const backendConfig = ACP_BACKENDS_ALL[cli.backendId];
+      if (!backendConfig?.builtinBridge) continue;
+      detected.push({
+        id: cli.backendId,
+        name: cli.name,
+        kind: 'acp' as const,
+        available: true,
+        backend: cli.backendId,
+        cliPath: backendConfig.defaultCliPath ?? cli.cmd,
+        acpArgs: cli.args,
+      });
+    }
+
+    return detected;
   }
 
   /**

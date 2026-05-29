@@ -20,7 +20,7 @@ import { addMessage, addOrUpdateMessage } from '@process/utils/message';
 import { uuid } from '@/common/utils';
 import BaseAgentManager from './BaseAgentManager';
 import { IpcAgentEventEmitter } from './IpcAgentEventEmitter';
-import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
+import { mainError, mainLog } from '@process/utils/mainLogger';
 import { hasCronCommands } from './CronCommandDetector';
 import { processCronInMessage } from './MessageMiddleware';
 import { extractAndStripThinkTags } from './ThinkTagDetector';
@@ -107,6 +107,7 @@ export class AionrsManager extends BaseAgentManager<AionrsManagerData, string> {
     string,
     { message: Extract<TMessage, { type: 'text' }>; timer: ReturnType<typeof setTimeout> }
   >();
+  private startupError: Error | null = null;
 
   constructor(data: AionrsManagerData, model: TProviderWithModel) {
     super('aionrs', { ...data, model }, new IpcAgentEventEmitter(), false);
@@ -119,7 +120,9 @@ export class AionrsManager extends BaseAgentManager<AionrsManagerData, string> {
     this.init();
 
     // Start the agent bootstrap — store promise so sendMessage can await it
-    this.agentReady = this.start().catch(() => {});
+    this.agentReady = this.start().catch((error) => {
+      this.startupError = error instanceof Error ? error : new Error(String(error));
+    });
   }
 
   /**
@@ -221,30 +224,37 @@ export class AionrsManager extends BaseAgentManager<AionrsManagerData, string> {
     }
   }
 
-  async sendMessage(data: { content: string; msg_id: string; files?: string[] }) {
-    const message: TMessage = {
-      id: data.msg_id,
-      type: 'text',
-      position: 'right',
-      conversation_id: this.conversation_id,
-      content: { content: data.content },
-    };
-    addMessage(this.conversation_id, message);
-    try {
-      (await getDatabase()).updateConversation(this.conversation_id, {});
-    } catch {
-      // Conversation might not exist in DB yet
+  async sendMessage(data: { content: string; msg_id: string; files?: string[]; silent?: boolean }) {
+    if (!data.silent) {
+      const message: TMessage = {
+        id: data.msg_id,
+        type: 'text',
+        position: 'right',
+        conversation_id: this.conversation_id,
+        content: { content: data.content },
+      };
+      addMessage(this.conversation_id, message);
+      try {
+        (await getDatabase()).updateConversation(this.conversation_id, {});
+      } catch {
+        // Conversation might not exist in DB yet
+      }
     }
     cronBusyGuard.setProcessing(this.conversation_id, true);
     this.status = 'pending';
     this._lastActivityAt = Date.now();
     // Wait for agent bootstrap to complete before sending
     await this.agentReady;
+    if (this.startupError) {
+      throw this.startupError;
+    }
     this._messageSentAt = Date.now();
     mainLog('[AionrsManager]', `message sent: msg_id=${data.msg_id}`);
     if (this.agent) {
       await this.agent.send(data.content, data.msg_id, data.files);
+      return;
     }
+    throw new Error('aionrs agent is not available');
   }
 
   /**
@@ -749,6 +759,18 @@ export class AionrsManager extends BaseAgentManager<AionrsManagerData, string> {
     if (this.agent) {
       this.agent.setConfig(config);
     }
+  }
+
+  setModel(model: TProviderWithModel): void {
+    this.model = model;
+    this.data = {
+      ...this.data,
+      data: {
+        ...this.data.data,
+        model,
+      },
+    };
+    this.setConfig({ model: model.useModel });
   }
 
   getMode(): { mode: string; initialized: boolean } {

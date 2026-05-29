@@ -1,0 +1,18 @@
+{
+  "apps": [
+    {
+      "name": "aionui-webui",
+      "script": "dist-server/server.mjs",
+      "interpreter": "/home/liming/.bun/bin/bun",
+      "cwd": "/home/liming/projects/AionUi",
+      "env": {
+        "NODE_ENV": "production",
+        "PORT": "3000",
+        "ALLOW_REMOTE": "true",
+        "DATA_DIR": "/tmp/aionui-data",
+        "AIONUI_PORT": "3000",
+        "AIONUI_HOST": "0.0.0.0"
+      }
+    }
+  ]
+}

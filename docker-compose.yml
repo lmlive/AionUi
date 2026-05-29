@@ -1,0 +1,91 @@
+version: '3.9'
+
+# AionUi Docker Compose — Web deployment mode
+#
+# Services:
+#   api     — Python FastAPI server (PDF processing & skill management)
+#   webui   — Node.js/Bun main server + pre-built React web frontend
+#
+# Quick start:
+#   docker compose up --build
+#
+# Data persistence:
+#   SQLite database is stored in ./data (mapped to /data inside webui container).
+#   Mount a host directory to keep data across container restarts:
+#     docker compose -v $(pwd)/data:/data up
+#
+# Environment variables (override via .env file or shell):
+#   API_PORT    — host port for the FastAPI service (default: 8765)
+#   WEBUI_PORT  — host port for the web UI / main server (default: 3000)
+#   ALLOW_ORIGINS — comma-separated CORS origins for the API (default: *)
+
+services:
+  # ------------------------------------------------------------------
+  # FastAPI PDF-processing & skill-management API
+  # ------------------------------------------------------------------
+  api:
+    build:
+      context: ./dist-server/api-server
+      dockerfile: Dockerfile
+    image: aionui-api:latest
+    container_name: aionui-api
+    restart: unless-stopped
+    environment:
+      DEPLOY_MODE: web
+      HOST: 0.0.0.0
+      PORT: 8765
+      # Set ALLOW_ORIGINS to the webui origin in production, e.g.:
+      #   ALLOW_ORIGINS: "http://localhost:3000,https://yourdomain.com"
+      ALLOW_ORIGINS: ${ALLOW_ORIGINS:-*}
+    ports:
+      - '${API_PORT:-8765}:8765'
+    healthcheck:
+      test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://localhost:8765/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - aionui-net
+
+  # ------------------------------------------------------------------
+  # Web UI — Bun/Node main server + React renderer (pre-built)
+  # ------------------------------------------------------------------
+  webui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: aionui-webui:latest
+    container_name: aionui-webui
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      DEPLOY_MODE: web
+      NODE_ENV: production
+      PORT: 3000
+      ALLOW_REMOTE: 'true'
+      DATA_DIR: /data
+      # Let the main server know where the API service is
+      API_SERVER_URL: http://api:8765
+    ports:
+      - '${WEBUI_PORT:-3000}:3000'
+    volumes:
+      - aionui-data:/data
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:3000/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - aionui-net
+
+volumes:
+  aionui-data:
+    driver: local
+
+networks:
+  aionui-net:
+    driver: bridge

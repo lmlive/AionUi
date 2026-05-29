@@ -9,7 +9,7 @@ import { AIONUI_FILES_MARKER } from '@/common/config/constants';
 import { useConversationContextSafe } from '@/renderer/hooks/context/ConversationContext';
 import { iconColors } from '@/renderer/styles/colors';
 import { Alert, Message, Tooltip } from '@arco-design/web-react';
-import { Copy } from '@icon-park/react';
+import { Copy, Redo } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -20,6 +20,7 @@ import HorizontalFileList from '@renderer/components/media/HorizontalFileList';
 import MarkdownView from '@renderer/components/Markdown';
 import { stripThinkTags, hasThinkTags } from '@renderer/utils/chat/thinkTagFilter';
 import { stripSkillSuggest, hasSkillSuggest } from '@renderer/utils/chat/skillSuggestParser';
+import { useResendMessage } from '../hooks';
 
 /**
  * Format a timestamp for message display.
@@ -119,6 +120,7 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
   const isTeammateMessage = message.position === 'left' && message.content.teammateMessage === true;
   const shouldRenderPlainText = isUserMessage;
   const conversationContext = useConversationContextSafe();
+  const resendMessage = useResendMessage();
   const resolvedFiles = useMemo(
     () => files.map((filePath) => resolveMessageFilePath(filePath, conversationContext?.workspace)),
     [conversationContext?.workspace, files]
@@ -143,6 +145,10 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
       });
   };
 
+  const handleResend = () => {
+    resendMessage(message.msg_id);
+  };
+
   const copyButton = (
     <Tooltip content={t('common.copy', { defaultValue: 'Copy' })}>
       <div
@@ -154,6 +160,18 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
       </div>
     </Tooltip>
   );
+
+  const resendButton = isUserMessage ? (
+    <Tooltip content={t('common.resend', { defaultValue: 'Resend' })}>
+      <div
+        className='p-4px rd-4px cursor-pointer hover:bg-3 transition-colors opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto'
+        onClick={handleResend}
+        style={{ lineHeight: 0 }}
+      >
+        <Redo theme='outline' size='16' fill={iconColors.secondary} />
+      </div>
+    </Tooltip>
+  ) : null;
 
   const cronMeta = message.content.cronMeta;
   const senderName = message.content.senderName;
@@ -228,6 +246,7 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
             'flex-row-reverse': isUserMessage,
           })}
         >
+          {resendButton}
           {copyButton}
           {message.createdAt && (
             <span className='text-12px text-t-secondary opacity-0 group-hover:opacity-100 transition-opacity select-none'>

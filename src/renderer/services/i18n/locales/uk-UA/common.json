@@ -88,5 +88,6 @@
   "unit": {
     "minute_short": "хв",
     "second_short": "с"
-  }
+  },
+  "resend": "Надіслати повторно"
 }

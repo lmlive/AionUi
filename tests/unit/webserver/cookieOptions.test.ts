@@ -78,6 +78,37 @@ describe('getCookieOptions', () => {
     });
   });
 
+  it('uses HTTP cookie when accessing LAN host even if SERVER_BASE_URL is https', () => {
+    process.env.SERVER_BASE_URL = 'https://aion.example.com';
+    SERVER_CONFIG._currentConfig.allowRemote = true;
+    const req = buildRequest({
+      secure: false,
+      hostname: '192.168.0.22',
+      get: ((header: string) => (header.toLowerCase() === 'host' ? '192.168.0.22:3000' : undefined)) as Request['get'],
+    });
+
+    expect(getCookieOptions(req)).toEqual({
+      httpOnly: true,
+      secure: false,
+      sameSite: 'lax',
+    });
+  });
+
+  it('uses Secure + SameSite=None when request host matches HTTPS SERVER_BASE_URL', () => {
+    process.env.SERVER_BASE_URL = 'https://aion.example.com';
+    const req = buildRequest({
+      secure: false,
+      hostname: 'aion.example.com',
+      get: ((header: string) => (header.toLowerCase() === 'host' ? 'aion.example.com' : undefined)) as Request['get'],
+    });
+
+    expect(getCookieOptions(req)).toEqual({
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+    });
+  });
+
   it('honours req.secure for deployments that enable Express trust proxy', () => {
     const req = buildRequest({ secure: true });
 

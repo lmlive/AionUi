@@ -24,6 +24,7 @@ const mockIsElectronDesktop = vi.hoisted(() => vi.fn(() => true));
 const cliAgents: AvailableAgent[] = [
   { backend: 'gemini', name: 'Gemini CLI', cliPath: '/usr/bin/gemini' },
   { backend: 'claude', name: 'Claude Code', cliPath: '/usr/bin/claude' },
+  { backend: 'custom', name: 'Local Writer', cliPath: '/opt/local-writer', customAgentId: 'local-writer' },
 ];
 
 const presetAssistants: AvailableAgent[] = [
@@ -79,6 +80,18 @@ vi.mock('@/common/config/storage', () => ({
       if (key === 'acp.cachedInitializeResult') {
         return {
           claude: {
+            protocolVersion: 1,
+            capabilities: {
+              loadSession: false,
+              promptCapabilities: { image: false, audio: false, embeddedContext: false },
+              mcpCapabilities: { stdio: true, http: false, sse: false },
+              sessionCapabilities: { fork: null, resume: null, list: null, close: null },
+              _meta: {},
+            },
+            agentInfo: null,
+            authMethods: [],
+          },
+          custom: {
             protocolVersion: 1,
             capabilities: {
               loadSession: false,
@@ -162,6 +175,13 @@ describe('TeamCreateModal', () => {
     expect(screen.getByText('Writing Buddy')).toBeInTheDocument();
   });
 
+  it('does not render manual teammate selection during team creation', () => {
+    render(<TeamCreateModal visible onClose={vi.fn()} onCreated={vi.fn()} />);
+
+    expect(screen.queryByTestId('team-create-teammates-select')).not.toBeInTheDocument();
+    expect(screen.queryByText('Initial Teammates')).not.toBeInTheDocument();
+  });
+
   it('filters options by typed query against agent names', () => {
     render(<TeamCreateModal visible onClose={vi.fn()} onCreated={vi.fn()} />);
 
@@ -210,6 +230,38 @@ describe('TeamCreateModal', () => {
       customAgentId: 'builtin-writing-buddy',
     });
     expect(onCreated).toHaveBeenCalledWith({ id: 'team-created' });
+  });
+
+  it('creates a team with a selected local custom agent without marking it as a preset', async () => {
+    mockCreateTeam.mockResolvedValue({ id: 'team-created' });
+
+    render(<TeamCreateModal visible onClose={vi.fn()} onCreated={vi.fn()} />);
+
+    openLeaderDropdown();
+    const option = document.querySelector(
+      '[data-testid="team-create-agent-option-cli::custom::local-writer"]'
+    ) as HTMLElement;
+    expect(option).toBeTruthy();
+    fireEvent.click(option);
+
+    const nameInput = screen.getByPlaceholderText('Team name');
+    fireEvent.change(nameInput, { target: { value: 'Local Team' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create Team' }));
+
+    await vi.waitFor(() => {
+      expect(mockCreateTeam).toHaveBeenCalledTimes(1);
+    });
+
+    const [payload] = mockCreateTeam.mock.calls[0];
+    expect(payload.agents[0]).toMatchObject({
+      role: 'leader',
+      agentType: 'custom',
+      conversationType: 'acp',
+      cliPath: '/opt/local-writer',
+      customAgentId: 'local-writer',
+    });
+    expect(payload.agents[0].isPreset).toBeUndefined();
   });
 
   it('uses brighter surface tokens for workspace picker', () => {

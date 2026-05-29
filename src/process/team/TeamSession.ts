@@ -96,12 +96,31 @@ export class TeamSession extends EventEmitter {
    * team mailbox. Wake failures must not be reported as send failures to the
    * renderer, otherwise the queue may re-enqueue an already-delivered message.
    */
-  private async wakeAfterAcceptedDelivery(slotId: string, context: 'team' | 'agent'): Promise<void> {
+  private async wakeAfterAcceptedDelivery(
+    slotId: string,
+    context: 'team' | 'agent',
+    conversationId?: string
+  ): Promise<void> {
     try {
       await this.teammateManager.wake(slotId);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(`[TeamSession] Accepted ${context} message but failed to wake ${slotId}:`, message);
+      if (conversationId) {
+        const msgId = crypto.randomUUID();
+        ipcBridge.conversation.responseStream.emit({
+          type: 'error',
+          conversation_id: conversationId,
+          msg_id: msgId,
+          data: message,
+        });
+        ipcBridge.conversation.responseStream.emit({
+          type: 'finish',
+          conversation_id: conversationId,
+          msg_id: msgId,
+          data: null,
+        });
+      }
     }
   }
 
@@ -145,7 +164,7 @@ export class TeamSession extends EventEmitter {
       });
     }
 
-    await this.wakeAfterAcceptedDelivery(leadSlotId, 'team');
+    await this.wakeAfterAcceptedDelivery(leadSlotId, 'team', leadAgent?.conversationId);
   }
 
   /**
@@ -191,7 +210,7 @@ export class TeamSession extends EventEmitter {
       });
     }
 
-    await this.wakeAfterAcceptedDelivery(slotId, 'agent');
+    await this.wakeAfterAcceptedDelivery(slotId, 'agent', agent?.conversationId);
   }
 
   /** Rename an agent and persist to DB */

@@ -315,12 +315,24 @@ export function initConversationBridge(
           emitConversationListChanged(existing, 'updated');
         }
 
-        // If model changed, kill running task to force rebuild with new model on next send
+        // If model changed, apply it immediately when the manager supports hot-swap.
+        // Otherwise kill the running task to force rebuild with the new persisted model on next send.
         if (modelChanged) {
           try {
-            workerTaskManager.kill(id);
+            const task = workerTaskManager.getTask(id) as
+              | (IAgentManager & { setModel?: (model: NonNullable<typeof nextModel>) => void })
+              | undefined;
+            if (existing?.type === 'aionrs' && task?.type === 'aionrs' && typeof task.setModel === 'function') {
+              task.setModel(nextModel);
+            } else {
+              workerTaskManager.kill(id);
+            }
           } catch {
-            // ignore kill error, will lazily rebuild later
+            try {
+              workerTaskManager.kill(id);
+            } catch {
+              // ignore kill error, will lazily rebuild later
+            }
           }
         }
 
@@ -406,10 +418,10 @@ export function initConversationBridge(
     };
   })();
 
-  ipcBridge.conversation.getWorkspace.provider(async ({ workspace, search, path }) => {
+  ipcBridge.conversation.getWorkspace.provider(async ({ workspace, search, path: targetPath }) => {
     try {
       const fileService = GeminiAgent.buildFileServer(workspace);
-      return await readDirectoryRecursive(path, {
+      return await readDirectoryRecursive(targetPath, {
         root: workspace,
         fileService,
         abortController: buildLastAbortController(),

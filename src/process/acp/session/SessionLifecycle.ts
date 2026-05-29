@@ -67,7 +67,10 @@ export class SessionLifecycle {
     if (host.agentConfig.authCredentials) {
       this.authNegotiator.mergeCredentials(host.agentConfig.authCredentials);
     }
-    if (host.agentConfig.resumeSessionId) {
+    // Claude Code ACP 0.37 can hang when AionUi resumes old sessions: the Claude
+    // transcript receives assistant turns, but ACP prompt may never resolve/stream
+    // them back to the UI. Prefer a fresh Claude ACP session per AionUi process start.
+    if (host.agentConfig.resumeSessionId && host.agentConfig.agentBackend !== 'claude') {
       this._sessionId = host.agentConfig.resumeSessionId;
     }
   }
@@ -161,6 +164,12 @@ export class SessionLifecycle {
 
     if (acpErr.retryable && this.startRetryCount < this.options.maxStartRetries) {
       this.startRetryCount++;
+      this.host.callbacks.onSignal({
+        type: 'retrying',
+        attempt: this.startRetryCount,
+        max: this.options.maxStartRetries,
+        reason: acpErr.message,
+      });
       this.clearBunxCacheIfNeeded();
       await this.teardown();
       const delay = 1000 * Math.pow(2, this.startRetryCount - 1);
@@ -194,6 +203,12 @@ export class SessionLifecycle {
     const acpErr = normalizeError(err);
     if (acpErr.retryable && this.resumeRetryCount < this.options.maxResumeRetries) {
       this.resumeRetryCount++;
+      this.host.callbacks.onSignal({
+        type: 'retrying',
+        attempt: this.resumeRetryCount,
+        max: this.options.maxResumeRetries,
+        reason: acpErr.message,
+      });
       this.clearBunxCacheIfNeeded();
       await this.teardown();
       const delay = 1000 * Math.pow(2, this.resumeRetryCount - 1);

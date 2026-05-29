@@ -27,6 +27,8 @@ export type SessionOptions = {
   promptTimeoutMs?: number;
   maxStartRetries?: number;
   maxResumeRetries?: number;
+  /** Max times to auto-retry a failed prompt before surfacing the error. Default: 2. */
+  maxPromptRetries?: number;
   metrics?: AcpMetrics;
   approvalCacheMaxSize?: number;
   /** User selections made before session creation (e.g., from the Guid page). */
@@ -145,7 +147,8 @@ export class AcpSession {
         setStatus: (s) => this.setStatus(s),
         enterError: (msg) => this.enterError(msg),
       },
-      options?.promptTimeoutMs ?? 300_000
+      options?.promptTimeoutMs ?? 300_000,
+      options?.maxPromptRetries ?? 2
     );
   }
 
@@ -377,6 +380,12 @@ export class AcpSession {
         return;
 
       case 'prompting': {
+        // Preserve the in-flight prompt so flushPendingPrompt() can replay it
+        // after the reconnect completes. Without this the user's message is lost.
+        const inflight = this.promptExecutor.inflightContent;
+        if (inflight && !this.promptExecutor.hasPending()) {
+          this.promptExecutor.setPending(inflight);
+        }
         this.lifecycle.clearClient();
         this.emitCrashSignalIfProcessDied(info);
         this.promptExecutor.stopTimer();

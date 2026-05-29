@@ -282,6 +282,35 @@ describe('conversationBridge', () => {
     });
   });
 
+  describe('update — model switching', () => {
+    it('hot-swaps aionrs model on the running task instead of only killing it', async () => {
+      const previousModel = { id: 'provider-1', useModel: 'old-model' };
+      const nextModel = { id: 'provider-1', useModel: 'next-model' };
+      const setModel = vi.fn();
+      const aionrsConversation = {
+        id: 'aionrs-1',
+        type: 'aionrs',
+        name: 'Aionrs',
+        model: previousModel,
+        extra: {},
+      } as unknown as TChatConversation;
+      vi.mocked(service.getConversation).mockResolvedValue(aionrsConversation);
+      vi.mocked(taskManager.getTask).mockReturnValue({
+        type: 'aionrs',
+        setModel,
+      } as unknown as ReturnType<IWorkerTaskManager['getTask']>);
+
+      const result = await handlers['update']({
+        id: 'aionrs-1',
+        updates: { model: nextModel },
+      });
+
+      expect(result).toBe(true);
+      expect(setModel).toHaveBeenCalledWith(nextModel);
+      expect(taskManager.kill).not.toHaveBeenCalled();
+    });
+  });
+
   describe('warmup', () => {
     it('calls getOrBuildTask for the given conversation_id', async () => {
       const handler = handlers['warmup'];

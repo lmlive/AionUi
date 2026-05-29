@@ -6,6 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import { DEFAULT_CODEX_MODELS } from '@/common/types/codex/codexModels';
+import { POTENTIAL_ACP_CLIS } from '@/common/types/acpTypes';
 import type { IProvider } from '@/common/config/storage';
 import { ConfigStorage } from '@/common/config/storage';
 import type { AcpBackendAll, AcpSessionConfigOption } from '@/common/types/acpTypes';
@@ -67,6 +68,35 @@ type UseGuidAgentSelectionOptions = {
   /** React Router location.key — changes on every navigation, used to detect new resets. */
   locationKey?: string;
 };
+
+function buildGuidLocalAgents(detectedAgents: AvailableAgent[]): AvailableAgent[] {
+  const builtinBackends = new Set<string>(POTENTIAL_ACP_CLIS.map((cli) => cli.backendId));
+  const detectedByBackend = new Map<string, AvailableAgent>();
+  const normalizedDetected = detectedAgents.map((agent) => ({ ...agent, available: agent.available ?? true }));
+
+  for (const agent of normalizedDetected) {
+    if (agent.isPreset || agent.customAgentId || agent.backend === 'remote') continue;
+    if (builtinBackends.has(agent.backend) && !detectedByBackend.has(agent.backend)) {
+      detectedByBackend.set(agent.backend, agent);
+    }
+  }
+
+  const nonBuiltinAgents = normalizedDetected.filter(
+    (agent) => !builtinBackends.has(agent.backend) || agent.customAgentId || agent.isExtension
+  );
+  const builtinAgents = POTENTIAL_ACP_CLIS.map((cli) => {
+    const detected = detectedByBackend.get(cli.backendId);
+    if (detected) return detected;
+    return {
+      backend: cli.backendId,
+      name: cli.name,
+      cliPath: cli.cmd,
+      available: false,
+    } satisfies AvailableAgent;
+  });
+
+  return [...nonBuiltinAgents, ...builtinAgents];
+}
 
 /**
  * Hook that manages agent selection, availability, and preset assistant logic.
@@ -209,13 +239,15 @@ export const useGuidAgentSelection = ({
 
   useEffect(() => {
     if (!availableAgentsData) return;
+    const localAgents = buildGuidLocalAgents(availableAgentsData);
     const remoteAsAvailable: AvailableAgent[] = (remoteAgentsData || []).map((ra) => ({
       backend: 'remote',
       name: ra.name,
       customAgentId: ra.id,
       avatar: ra.avatar,
+      available: true,
     }));
-    setAvailableAgents([...availableAgentsData, ...remoteAsAvailable]);
+    setAvailableAgents([...localAgents, ...remoteAsAvailable]);
   }, [availableAgentsData, remoteAgentsData]);
 
   // Track whether the resetAssistant flag has been consumed so it only fires once
@@ -235,7 +267,7 @@ export const useGuidAgentSelection = ({
 
     if (resetAssistant && !resetHandledRef.current) {
       resetHandledRef.current = true;
-      const firstCliAgent = availableAgents.find((a) => !a.isPreset);
+      const firstCliAgent = availableAgents.find((a) => !a.isPreset && a.available !== false);
       const fallbackKey = firstCliAgent ? getAgentKey(firstCliAgent) : 'aionrs';
       _setSelectedAgentKey(fallbackKey);
       ConfigStorage.set('guid.lastSelectedAgent', fallbackKey).catch((error) => {
@@ -264,14 +296,14 @@ export const useGuidAgentSelection = ({
             return;
           }
           // Plain backend key — verify it still exists in detected engines
-          if (availableAgents.some((agent) => getAgentKey(agent) === savedKey)) {
+          if (availableAgents.some((agent) => getAgentKey(agent) === savedKey && agent.available !== false)) {
             _setSelectedAgentKey(savedKey);
             return;
           }
         }
 
         // No saved preference or stale key — default to first detected engine
-        const firstAgent = availableAgents[0];
+        const firstAgent = availableAgents.find((agent) => agent.available !== false);
         if (firstAgent) {
           _setSelectedAgentKey(getAgentKey(firstAgent));
         }
@@ -473,7 +505,7 @@ export const useGuidAgentSelection = ({
 
   // Key of the first non-preset CLI agent (used as fallback when leaving preset mode)
   const defaultAgentKey = useMemo(() => {
-    const firstCliAgent = availableAgents?.find((a) => !a.isPreset);
+    const firstCliAgent = availableAgents?.find((a) => !a.isPreset && a.available !== false);
     return firstCliAgent ? getAgentKey(firstCliAgent) : 'aionrs';
   }, [availableAgents]);
 

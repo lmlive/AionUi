@@ -7,7 +7,7 @@
 export const CODEX_ACP_BRIDGE_VERSION = '0.9.5';
 export const CODEX_ACP_NPX_PACKAGE = `@zed-industries/codex-acp@${CODEX_ACP_BRIDGE_VERSION}`;
 
-export const CLAUDE_ACP_BRIDGE_VERSION = '0.29.2';
+export const CLAUDE_ACP_BRIDGE_VERSION = '0.37.0';
 export const CLAUDE_ACP_NPX_PACKAGE = `@agentclientprotocol/claude-agent-acp@${CLAUDE_ACP_BRIDGE_VERSION}`;
 
 export const CODEBUDDY_ACP_BRIDGE_VERSION = '2.73.0';
@@ -164,6 +164,13 @@ export interface AcpBackendConfig {
    */
   defaultCliPath?: string;
 
+  /**
+   * Whether this backend has a dedicated ACP bridge connector (e.g. claude-agent-acp, codex-acp).
+   * Bridge backends are always included in agent detection regardless of PATH availability,
+   * because the bridge package — not the CLI binary itself — handles process launch.
+   */
+  builtinBridge?: boolean;
+
   /** 使用前是否需要认证 / Whether this backend requires authentication before use */
   authRequired?: boolean;
 
@@ -307,6 +314,8 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     id: 'claude',
     name: 'Claude Code',
     cliCommand: 'claude',
+    defaultCliPath: `npx ${CLAUDE_ACP_NPX_PACKAGE}`,
+    builtinBridge: true, // always detectable — connectClaude() uses claude-agent-acp bridge
     authRequired: true,
     enabled: true,
     supportsStreaming: false,
@@ -338,6 +347,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'Codex',
     cliCommand: 'codex', // Detect local codex CLI (codex-acp bridge invokes it)
     defaultCliPath: `npx ${CODEX_ACP_NPX_PACKAGE}`,
+    builtinBridge: true, // always detectable — connectCodex() uses codex-acp bridge
     authRequired: true, // Needs OPENAI_API_KEY or ChatGPT auth
     enabled: true, // ✅ Codex via codex-acp ACP bridge
     supportsStreaming: false,
@@ -349,6 +359,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'CodeBuddy',
     cliCommand: 'codebuddy',
     defaultCliPath: `npx ${CODEBUDDY_ACP_NPX_PACKAGE}`,
+    builtinBridge: true, // always detectable — connectCodebuddy() uses codebuddy-acp bridge
     authRequired: true,
     enabled: true, // ✅ Tencent CodeBuddy Code CLI，使用 `codebuddy --acp` 启动
     supportsStreaming: false,
@@ -531,6 +542,7 @@ export enum AcpErrorType {
   PERMISSION_DENIED = 'PERMISSION_DENIED',
   AGENT_ERROR = 'AGENT_ERROR',
   INTERNAL_ERROR = 'INTERNAL_ERROR',
+  RATE_LIMITED = 'RATE_LIMITED',
   // Granular ACP protocol errors
   ACP_PARSE_ERROR = 'ACP_PARSE_ERROR',
   INVALID_ACP_REQUEST = 'INVALID_ACP_REQUEST',

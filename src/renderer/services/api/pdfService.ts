@@ -263,9 +263,24 @@ export async function fillPdfFormFields(file: File, fieldValues: Record<string, 
 // Skill management API
 // ---------------------------------------------------------------------------
 
-export type SkillInitResult = { skill_name: string; path: string; files_created: string[] };
-export type SkillValidateResult = { is_valid: boolean; message: string };
-export type SkillPackageResult = { output_path: string; file_size_bytes: number };
+export type SkillInitResult = {
+  success: boolean;
+  skill_name: string;
+  skill_title: string;
+  skill_dir: string;
+  created_dirs: string[];
+  created_files: string[];
+  next_steps: string[];
+};
+export type SkillValidateResult = {
+  valid: boolean;
+  message: string;
+  mode: 'content' | 'path';
+  skill_name?: string;
+  description?: string;
+  skill_path?: string;
+};
+export type SkillPackageResult = Blob;
 
 /**
  * Create a new skill directory with template files.
@@ -276,9 +291,9 @@ export type SkillPackageResult = { output_path: string; file_size_bytes: number 
 export async function initSkill(skillName: string, basePath: string): Promise<ApiResponse<SkillInitResult>> {
   const form = new FormData();
   form.append('skill_name', skillName);
-  form.append('base_path', basePath);
+  form.append('path', basePath);
 
-  return apiRequest<SkillInitResult>('/skills/init', 'POST', form);
+  return apiRequest<SkillInitResult>('/admin/skills/init', 'POST', form);
 }
 
 /**
@@ -290,19 +305,18 @@ export async function validateSkill(skillPath: string): Promise<ApiResponse<Skil
   const form = new FormData();
   form.append('skill_path', skillPath);
 
-  return apiRequest<SkillValidateResult>('/skills/validate', 'POST', form);
+  return apiRequest<SkillValidateResult>('/admin/skills/validate', 'POST', form);
 }
 
 /**
  * Package a skill directory into a .skill (ZIP) archive.
+ * Returns the archive as a Blob (application/zip).
  *
  * @param skillPath  Absolute path to the skill directory.
- * @param outputDir  Directory where the .skill file will be written.
  */
-export async function packageSkill(skillPath: string, outputDir: string): Promise<ApiResponse<SkillPackageResult>> {
+export async function packageSkill(skillPath: string): Promise<ApiResponse<SkillPackageResult>> {
   const form = new FormData();
   form.append('skill_path', skillPath);
-  form.append('output_dir', outputDir);
 
-  return apiRequest<SkillPackageResult>('/skills/package', 'POST', form);
+  return apiRequest<SkillPackageResult>('/admin/skills/package', 'POST', form);
 }

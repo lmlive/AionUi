@@ -9,6 +9,7 @@ export type AcpErrorCode =
   | 'PROCESS_CRASHED'
   | 'INVALID_STATE'
   | 'INTERNAL_ERROR'
+  | 'RATE_LIMITED'
   // Granular ACP JSON-RPC error codes
   | 'ACP_PARSE_ERROR' // -32700
   | 'INVALID_ACP_REQUEST' // -32600
@@ -23,15 +24,18 @@ export type AcpErrorCode =
 
 export class AcpError extends Error {
   readonly retryable: boolean;
+  /** Minimum suggested delay in ms before retrying (for rate-limit errors). */
+  readonly retryDelayMs: number | undefined;
 
   constructor(
     public readonly code: AcpErrorCode,
     message: string,
-    options?: { cause?: unknown; retryable?: boolean }
+    options?: { cause?: unknown; retryable?: boolean; retryDelayMs?: number }
   ) {
     super(message, { cause: options?.cause });
     this.name = 'AcpError';
     this.retryable = options?.retryable ?? false;
+    this.retryDelayMs = options?.retryDelayMs;
   }
 }
 

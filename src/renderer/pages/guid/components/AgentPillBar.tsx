@@ -8,7 +8,7 @@ import { resolveAgentLogo } from '@/renderer/utils/model/agentLogo';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import type { AcpBackend, AvailableAgent } from '../types';
-import { Plus, Robot } from '@icon-park/react';
+import { CheckOne, CloseOne, Plus, Robot } from '@icon-park/react';
 import { Tooltip } from '@arco-design/web-react';
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -59,6 +59,7 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({
           .filter((agent) => !agent.isPreset)
           .map((agent, index) => {
             const isSelected = selectedAgentKey === getAgentKey(agent);
+            const isAvailable = agent.available !== false;
             const extensionAvatar = resolveExtensionAssetUrl(agent.isExtension ? agent.avatar : undefined);
             // Remote agents use emoji avatars — not image URLs
             const emojiAvatar = agent.backend === 'remote' && agent.avatar ? agent.avatar : undefined;
@@ -75,49 +76,69 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({
             return (
               <React.Fragment key={getAgentKey(agent)}>
                 {!isMobile && index > 0 && <div className='text-16px lh-1 p-2px select-none opacity-30'>|</div>}
-                <div
-                  data-agent-pill='true'
-                  data-agent-key={getAgentKey(agent)}
-                  data-agent-backend={agent.backend}
-                  data-agent-selected={isSelected ? 'true' : 'false'}
-                  className={`group relative flex items-center cursor-pointer whitespace-nowrap overflow-hidden ${isSelected ? `opacity-100 px-12px py-8px rd-20px mx-2px ${styles.agentItemSelected}` : isMobile ? 'opacity-70 p-4px' : 'opacity-60 p-4px hover:opacity-100'}`}
-                  style={
-                    isSelected
-                      ? {
-                          ...(isMobile ? { transition: 'opacity 0.2s ease, background-color 0.2s ease' } : undefined),
-                          ...(isMobile || suppressSelectionAnimation ? { animation: 'none' } : undefined),
-                        }
-                      : { transition: 'opacity 0.2s ease' }
+                <Tooltip
+                  content={
+                    isAvailable
+                      ? t('guid.agent.available', { defaultValue: 'CLI detected' })
+                      : t('guid.agent.unavailable', { defaultValue: 'CLI not installed' })
                   }
-                  onClick={() => onSelectAgent(getAgentKey(agent))}
                 >
-                  {emojiAvatar ? (
-                    <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}>{emojiAvatar}</span>
-                  ) : logoSrc ? (
-                    <img
-                      src={logoSrc}
-                      alt={`${agent.backend} logo`}
-                      width={20}
-                      height={20}
-                      style={{ objectFit: 'contain', flexShrink: 0 }}
-                    />
-                  ) : (
-                    <Robot theme='outline' size={20} fill='currentColor' style={{ flexShrink: 0 }} />
-                  )}
-                  <span
-                    className={`font-medium text-14px ${isSelected ? 'font-semibold ml-4px' : isMobile ? 'max-w-0 opacity-0 overflow-hidden' : 'max-w-0 opacity-0 overflow-hidden group-hover:max-w-100px group-hover:opacity-100 group-hover:ml-8px'}`}
-                    style={{
-                      color: 'var(--text-primary)',
-                      transition: isSelected
-                        ? 'color 0.2s ease, font-weight 0.2s ease'
-                        : isMobile
-                          ? 'none'
-                          : 'max-width 0.6s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) 0.05s, margin 0.6s cubic-bezier(0.2, 0.8, 0.3, 1)',
+                  <div
+                    data-agent-pill='true'
+                    data-agent-key={getAgentKey(agent)}
+                    data-agent-backend={agent.backend}
+                    data-agent-selected={isSelected ? 'true' : 'false'}
+                    data-agent-available={isAvailable ? 'true' : 'false'}
+                    aria-disabled={!isAvailable}
+                    className={`group relative flex items-center whitespace-nowrap overflow-hidden ${isAvailable ? 'cursor-pointer' : 'cursor-not-allowed grayscale'} ${isSelected ? `opacity-100 px-12px py-8px rd-20px mx-2px ${styles.agentItemSelected}` : isAvailable ? (isMobile ? 'opacity-70 p-4px' : 'opacity-60 p-4px hover:opacity-100') : 'opacity-35 p-4px'}`}
+                    style={
+                      isSelected
+                        ? {
+                            ...(isMobile ? { transition: 'opacity 0.2s ease, background-color 0.2s ease' } : undefined),
+                            ...(isMobile || suppressSelectionAnimation ? { animation: 'none' } : undefined),
+                          }
+                        : { transition: 'opacity 0.2s ease' }
+                    }
+                    onClick={() => {
+                      if (!isAvailable) return;
+                      onSelectAgent(getAgentKey(agent));
                     }}
                   >
-                    {agent.name}
-                  </span>
-                </div>
+                    {emojiAvatar ? (
+                      <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}>{emojiAvatar}</span>
+                    ) : logoSrc ? (
+                      <img
+                        src={logoSrc}
+                        alt={`${agent.backend} logo`}
+                        width={20}
+                        height={20}
+                        style={{ objectFit: 'contain', flexShrink: 0 }}
+                      />
+                    ) : (
+                      <Robot theme='outline' size={20} fill='currentColor' style={{ flexShrink: 0 }} />
+                    )}
+                    <span
+                      className={`font-medium text-14px ${isSelected ? 'font-semibold ml-4px' : isMobile ? 'max-w-0 opacity-0 overflow-hidden' : 'max-w-0 opacity-0 overflow-hidden group-hover:max-w-100px group-hover:opacity-100 group-hover:ml-8px'}`}
+                      style={{
+                        color: 'var(--text-primary)',
+                        transition: isSelected
+                          ? 'color 0.2s ease, font-weight 0.2s ease'
+                          : isMobile
+                            ? 'none'
+                            : 'max-width 0.6s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) 0.05s, margin 0.6s cubic-bezier(0.2, 0.8, 0.3, 1)',
+                      }}
+                    >
+                      {agent.name}
+                    </span>
+                    <span className={isSelected ? 'ml-6px flex items-center' : 'absolute -right-1px -bottom-1px'}>
+                      {isAvailable ? (
+                        <CheckOne theme='filled' size={isSelected ? 12 : 10} fill='var(--color-success-6)' />
+                      ) : (
+                        <CloseOne theme='filled' size={isSelected ? 12 : 10} fill='var(--color-text-3)' />
+                      )}
+                    </span>
+                  </div>
+                </Tooltip>
               </React.Fragment>
             );
           })}
